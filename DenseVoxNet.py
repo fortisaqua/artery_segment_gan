@@ -11,7 +11,7 @@ from dicom_read import read_dicoms
 import gc
 
 resolution = 64
-batch_size = 4
+batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
 ori_lr = 0.001
 power = 0.9
@@ -19,9 +19,9 @@ GPU0 = '0'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 type_num = 0
-already_trained=297
-epoch_walked=297
-upper_threshold = 0.8
+already_trained=0
+epoch_walked=0
+upper_threshold = 0.5
 
 ###############################################################
 config={}
@@ -37,7 +37,7 @@ for name in config['test_names']:
 
 config['resolution'] = resolution
 config['batch_size'] = batch_size
-config['meta_path'] = '/opt/analyse_airway/data_meta.pkl'
+config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 
 ################################################################
@@ -57,7 +57,8 @@ class Network:
         if os.path.exists(self.train_models_dir):
             # shutil.rmtree(self.train_models_dir)
             print 'train_models_dir: existed! will be loaded! \n'
-        # os.makedirs(self.train_models_dir)
+        else:
+            os.makedirs(self.train_models_dir)
 
         if os.path.exists(self.train_sum_dir):
             # shutil.rmtree(self.train_sum_dir)
@@ -250,11 +251,11 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount>=test_amount and train_amount>0 and test_amount>0 and data.total_train_batch_num>0 and data.total_test_seq_batch>0:
                     weight_for = 0.35*(1-epoch*1.0/15000)+0.5
-                    if epoch % 4 == 0:
+                    if epoch % 1 == 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
-                        lung_img = ST.ReadImage('./WANG_REN/lung_img.vtk')
-                        mask_dir = "./WANG_REN/airway"
+                        lung_img = read_dicoms('/opt/Multi-Task-data-process/multi_task_data_test/ZHANG_YU_KUN/original1')
+                        mask_dir = "/opt/Multi-Task-data-process/multi_task_data_test/ZHANG_YU_KUN/artery"
                         test_batch_size = batch_size
                         # test_data = tools.Test_data(dicom_dir,input_shape)
                         test_data = tools.Test_data(lung_img, input_shape, 'vtk_data')
@@ -319,12 +320,12 @@ class Network:
                         final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
                         final_img.SetSpacing(test_data.space)
                         print "writing full testing result"
-                        print '/opt/analyse_airway/test_result/test_result' + str(epoch) + '.vtk'
-                        ST.WriteImage(final_img, '/opt/analyse_airway/test_result/test_result' + str(epoch) + '.vtk')
+                        print '/opt/analyse_artery/test_result/test_result' + str(epoch) + '.vtk'
+                        ST.WriteImage(final_img, '/opt/analyse_artery/test_result/test_result' + str(epoch) + '.vtk')
                         if epoch==0:
                             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
                             mask_img.SetSpacing(test_data.space)
-                            ST.WriteImage(mask_img, '/opt/analyse_airway/test_result/test_mask.vtk')
+                            ST.WriteImage(mask_img, '/opt/analyse_artery/test_result/test_mask.vtk')
                         test_IOU = 2*np.sum(to_be_transformed*array_mask)/(np.sum(to_be_transformed)+np.sum(array_mask))
                         print "IOU accuracy: ",test_IOU
                         time_end = time.time()
@@ -485,7 +486,7 @@ class Network:
             return final_img
 
 if __name__ == "__main__":
-    dicom_dir = "./WANG_REN/original1"
+    dicom_dir = "/opt/Multi-Task-data-process/multi_task_data_test/ZHANG_YU_KUN/original1"
     net = Network()
     net.train(config)
     final_img = net.test(dicom_dir)
