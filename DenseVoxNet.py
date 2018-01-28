@@ -13,7 +13,7 @@ import gc
 resolution = 64
 batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.001
+ori_lr = 0.0001
 power = 0.9
 GPU0 = '0'
 input_shape = [64,64,128]
@@ -72,7 +72,7 @@ class Network:
 
     def ae_u(self,X,training,batch_size,threshold):
         original=16
-        growth=10
+        growth=12
         dense_layer_num=12
         # input layer
         X=tf.reshape(X,[batch_size,input_shape[0],input_shape[1],input_shape[2],1])
@@ -186,8 +186,7 @@ class Network:
             w = tf.placeholder(tf.float32) # power of foreground against background
             ae_loss = tf.reduce_mean( -tf.reduce_mean(w*Y_*tf.log(Y_pred_modi_ + 1e-8),reduction_indices=[1]) -
                                       tf.reduce_mean((1-w)*(1-Y_)*tf.log(1-Y_pred_modi_ + 1e-8), reduction_indices=[1]) )
-            sum_ae_loss = tf.summary.scalar('ae_loss', ae_loss)
-
+            tf.summary.scalar('ae_loss', ae_loss)
             ################################ wgan loss
             gan_g_loss = -tf.reduce_mean(XY_fake_pair)
             gan_d_loss = tf.reduce_mean(XY_fake_pair) - tf.reduce_mean(XY_real_pair)
@@ -204,12 +203,12 @@ class Network:
             slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients),reduction_indices=[1]))
             gradient_penalty = tf.reduce_mean((slopes-1.0)**2)
             gan_d_loss +=10*gradient_penalty
-
+            tf.summary.scalar('gan_d_loss', gan_d_loss)
             #################################  ae + gan loss
             gan_g_w = 5
             ae_w = 100-gan_g_w
             ae_gan_g_loss = ae_w * ae_loss + gan_g_w * gan_g_loss
-
+            tf.summary.scalar('ae_gan_g_loss', ae_gan_g_loss)
         with tf.device('/gpu:' + GPU0):
             ae_var = [var for var in tf.trainable_variables() if var.name.startswith('ae')]
             dis_var = [var for var in tf.trainable_variables() if var.name.startswith('dis')]
@@ -407,7 +406,6 @@ class Network:
             Y_pred, Y_pred_modi, Y_pred_nosig = self.ae_u(X, training, test_batch_size, threshold)
 
         print tools.Ops.variable_count()
-        sum_merged = tf.summary.merge_all()
         saver = tf.train.Saver(max_to_keep=1)
         config = tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.visible_device_list = GPU0
