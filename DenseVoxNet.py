@@ -320,12 +320,12 @@ class Network:
                         print "writing full testing result"
                         if not os.path.exists("./test_result"):
                             os.makedirs("./test_result")
-                        print './test_result' + str(epoch) + '.vtk'
-                        ST.WriteImage(final_img, '/opt/analyse_artery/test_result/test_result' + str(epoch) + '.vtk')
+                        print './test_result/test_result' + str(epoch) + '.vtk'
+                        ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
                         if epoch==0:
                             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
                             mask_img.SetSpacing(test_data.space)
-                            ST.WriteImage(mask_img, '/opt/analyse_artery/test_result/test_mask.vtk')
+                            ST.WriteImage(mask_img, './test_result/test_mask.vtk')
                         test_IOU = 2*np.sum(to_be_transformed*array_mask)/(np.sum(to_be_transformed)+np.sum(array_mask))
                         print "IOU accuracy: ",test_IOU
                         time_end = time.time()
