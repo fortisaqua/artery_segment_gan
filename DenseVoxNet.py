@@ -318,7 +318,9 @@ class Network:
                         final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
                         final_img.SetSpacing(test_data.space)
                         print "writing full testing result"
-                        print '/opt/analyse_artery/test_result/test_result' + str(epoch) + '.vtk'
+                        if not os.path.exists("./test_result"):
+                            os.makedirs("./test_result")
+                        print './test_result' + str(epoch) + '.vtk'
                         ST.WriteImage(final_img, '/opt/analyse_artery/test_result/test_result' + str(epoch) + '.vtk')
                         if epoch==0:
                             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
