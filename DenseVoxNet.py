@@ -250,7 +250,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount>=test_amount and train_amount>0 and test_amount>0 and data.total_train_batch_num>0 and data.total_test_seq_batch>0:
                     weight_for = 0.35*(1-epoch*1.0/15000)+0.5
-                    if epoch % 1 == 0:
+                    if epoch % 10 == 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
                         origin_dir = read_dicoms('/opt/Multi-Task-data-process/multi_task_data_test/FU_LI_JUN/original1')
