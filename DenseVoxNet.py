@@ -253,17 +253,16 @@ class Network:
                     if epoch % 1 == 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
-                        lung_img = read_dicoms('/opt/Multi-Task-data-process/multi_task_data_test/ZHANG_YU_KUN/original1')
-                        mask_dir = "/opt/Multi-Task-data-process/multi_task_data_test/ZHANG_YU_KUN/artery"
+                        origin_dir = read_dicoms('/opt/Multi-Task-data-process/multi_task_data_test/FU_LI_JUN/original1')
+                        mask_dir = "/opt/Multi-Task-data-process/multi_task_data_test/FU_LI_JUN/artery"
                         test_batch_size = batch_size
                         # test_data = tools.Test_data(dicom_dir,input_shape)
-                        test_data = tools.Test_data(lung_img, input_shape, 'vtk_data')
+                        test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
                         test_data.organize_blocks()
                         test_mask = read_dicoms(mask_dir)
                         array_mask = ST.GetArrayFromImage(test_mask)
                         array_mask = np.transpose(array_mask, (2, 1, 0))
                         print "mask shape: ",np.shape(array_mask)
-                        time1 = time.time()
                         block_numbers = test_data.blocks.keys()
                         for i in range(0,len(block_numbers),test_batch_size):
                             batch_numbers = []
