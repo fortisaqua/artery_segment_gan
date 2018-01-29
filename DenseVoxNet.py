@@ -13,7 +13,7 @@ import gc
 resolution = 64
 batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.0001
+ori_lr = 0.05
 power = 0.9
 GPU0 = '0'
 input_shape = [64,64,128]
@@ -21,7 +21,7 @@ output_shape = [64,64,128]
 type_num = 0
 already_trained=0
 epoch_walked=0
-upper_threshold = 0.5
+upper_threshold = 0.6
 
 ###############################################################
 config={}
