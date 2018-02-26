@@ -21,7 +21,7 @@ output_shape = [64,64,128]
 type_num = 0
 already_trained=0
 epoch_walked=0
-upper_threshold = 0.6
+upper_threshold = 0.8
 
 ###############################################################
 config={}
