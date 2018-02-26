@@ -253,8 +253,8 @@ class Network:
                     if epoch % 50 == 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
-                        origin_dir = read_dicoms('/opt/Multi-Task-data-process/multi_task_data_test/FU_LI_JUN/original1')
-                        mask_dir = "/opt/Multi-Task-data-process/multi_task_data_test/FU_LI_JUN/artery"
+                        origin_dir = read_dicoms('./WU_XIAO_YING/original1')
+                        mask_dir = "./WU_XIAO_YING/artery"
                         test_batch_size = batch_size
                         # test_data = tools.Test_data(dicom_dir,input_shape)
                         test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
@@ -485,7 +485,7 @@ class Network:
             return final_img
 
 if __name__ == "__main__":
-    dicom_dir = "/opt/Multi-Task-data-process/multi_task_data_test/ZHANG_YU_KUN/original1"
+    dicom_dir = "./WU_XIAO_YING/original1"
     net = Network()
     net.train(config)
     final_img = net.test(dicom_dir)
