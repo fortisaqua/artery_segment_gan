@@ -15,7 +15,7 @@ batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
 ori_lr = 0.05
 power = 0.9
-GPU0 = '0'
+GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 type_num = 0
@@ -250,7 +250,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount>=test_amount and train_amount>0 and test_amount>0 and data.total_train_batch_num>0 and data.total_test_seq_batch>0:
                     weight_for = 0.35*(1-epoch*1.0/15000)+0.5
-                    if epoch % 10 == 0:
+                    if epoch % 50 == 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
                         origin_dir = read_dicoms('/opt/Multi-Task-data-process/multi_task_data_test/FU_LI_JUN/original1')
