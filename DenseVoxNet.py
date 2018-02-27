@@ -13,7 +13,7 @@ import gc
 resolution = 64
 batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.05
+ori_lr = 0.001
 power = 0.9
 GPU0 = '1'
 input_shape = [64,64,128]
@@ -343,7 +343,7 @@ class Network:
                         # X_train_batch, Y_train_batch = data.load_X_Y_voxel_grids_train_next_batch()
                         # Y_train_batch=np.reshape(Y_train_batch,[batch_size, output_shape[0], output_shape[1], output_shape[2], 1])
                         gan_d_loss_c, = sess.run([gan_d_loss],feed_dict={X: X_train_batch, Y: Y_train_batch,training:False, w: weight_for, threshold:upper_threshold})
-                        ae_loss_c, gan_g_loss_c, sum_train = sess.run([ae_loss, gan_g_loss, sum_merged],feed_dict={X: X_train_batch, Y: Y_train_batch,training:False, w: weight_for, threshold:upper_threshold})
+                        ae_loss_c, gan_g_loss_c = sess.run([ae_loss, gan_g_loss],feed_dict={X: X_train_batch, Y: Y_train_batch,training:False, w: weight_for, threshold:upper_threshold})
                         if epoch%4 == 0 and epoch>0 and i == 0:
                             learning_rate_g = learning_rate_g*power
                         sess.run([ae_g_optim],feed_dict={X: X_train_batch, threshold:upper_threshold, Y: Y_train_batch, lr: learning_rate_g, training: True, w: weight_for})
@@ -354,7 +354,7 @@ class Network:
                         else:
                             sess.run([dis_optim], feed_dict={X: X_train_batch, threshold:upper_threshold, Y: Y_train_batch, lr: learning_rate_g,training:True, w: weight_for})
 
-                        sum_writer_train.add_summary(sum_train, epoch * total_train_batch_num + i)
+                        # sum_writer_train.add_summary(sum_train, epoch * total_train_batch_num + i)
                         if i%2==0:
                             print "epoch:", epoch, " i:", i, " train ae loss:", ae_loss_c," gan g loss:",gan_g_loss_c," gan d loss:",gan_d_loss_c," learning rate: ",learning_rate_g
                         #### testing
