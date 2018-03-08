@@ -13,15 +13,15 @@ import gc
 resolution = 64
 batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.001
+ori_lr = 0.0001
 power = 0.9
 GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 type_num = 0
-already_trained=0
-epoch_walked=0
-upper_threshold = 0.8
+already_trained=192
+epoch_walked=192
+upper_threshold = 0.6
 
 ###############################################################
 config={}
@@ -280,7 +280,7 @@ class Network:
                                                                                            feed_dict={X: temp_input,
                                                                                                       training: False,
                                                                                                       w:weight_for,
-                                                                                                      threshold:upper_threshold})
+                                                                                                      threshold:upper_threshold+0.2})
                                 for j in range(test_batch_size):
                                     test_data.upload_result(batch_numbers[j],Y_temp_modi[j,:,:,:])
                             else:
@@ -304,7 +304,7 @@ class Network:
                                                                                             feed_dict={X_temp: temp_input,
                                                                                                        training: False,
                                                                                                        w : weight_for,
-                                                                                                       threshold : upper_threshold})
+                                                                                                       threshold : upper_threshold+0.2})
                                 for j in range(temp_batch_size):
                                     test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
                         test_result_array = test_data.get_result()
@@ -344,7 +344,7 @@ class Network:
                         # Y_train_batch=np.reshape(Y_train_batch,[batch_size, output_shape[0], output_shape[1], output_shape[2], 1])
                         gan_d_loss_c, = sess.run([gan_d_loss],feed_dict={X: X_train_batch, Y: Y_train_batch,training:False, w: weight_for, threshold:upper_threshold})
                         ae_loss_c, gan_g_loss_c = sess.run([ae_loss, gan_g_loss],feed_dict={X: X_train_batch, Y: Y_train_batch,training:False, w: weight_for, threshold:upper_threshold})
-                        if epoch%4 == 0 and epoch>0 and i == 0:
+                        if epoch%16 == 0 and epoch>0 and i == 0:
                             learning_rate_g = learning_rate_g*power
                         sess.run([ae_g_optim],feed_dict={X: X_train_batch, threshold:upper_threshold, Y: Y_train_batch, lr: learning_rate_g, training: True, w: weight_for})
                         if epoch<=5:
@@ -363,7 +363,7 @@ class Network:
                                 X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
                                 # Y_test_batch = np.reshape(Y_test_batch,[batch_size, output_shape[0], output_shape[1], output_shape[2], 1])
                                 ae_loss_t,gan_g_loss_t,gan_d_loss_t, Y_test_pred,Y_test_modi, Y_test_pred_nosig= \
-                                    sess.run([ae_loss, gan_g_loss,gan_d_loss, Y_pred,Y_pred_modi,Y_pred_nosig],feed_dict={X: X_test_batch, threshold:upper_threshold, Y: Y_test_batch,training:False, w: weight_for})
+                                    sess.run([ae_loss, gan_g_loss,gan_d_loss, Y_pred,Y_pred_modi,Y_pred_nosig],feed_dict={X: X_test_batch, threshold:upper_threshold+0.2, Y: Y_test_batch,training:False, w: weight_for})
                                 predict_result = np.float32(Y_test_modi>0.01)
                                 predict_result = np.reshape(predict_result,[batch_size,input_shape[0], input_shape[1], input_shape[2]])
                                 # Foreground
