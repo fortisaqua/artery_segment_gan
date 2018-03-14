@@ -81,7 +81,7 @@ class Test_data():
                 ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
             except Exception,e:
                 print np.shape(self.results[number].load_data()[:,:,:,0]),self.results[number].get_range()
-        return np.float32(ret>=2)
+        return np.float32(ret>=6)
 
 class Data:
     def __init__(self,config,epoch):

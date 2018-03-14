@@ -13,14 +13,14 @@ import gc
 resolution = 64
 batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.0001
+ori_lr = 0.0005
 power = 0.9
 GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 type_num = 0
-already_trained=192
-epoch_walked=192
+already_trained=0
+epoch_walked=0
 upper_threshold = 0.6
 
 ###############################################################
@@ -236,7 +236,7 @@ class Network:
             else:
                 sess.run(tf.global_variables_initializer())
 
-            learning_rate_g = ori_lr*pow(power,(epoch_walked/4))
+            learning_rate_g = ori_lr*pow(power,(epoch_walked/8))
             for epoch in range(epoch_walked,15000):
                 # data.shuffle_X_Y_files(label='train')
                 #### select data randomly each 10 epochs
@@ -250,11 +250,11 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount>=test_amount and train_amount>0 and test_amount>0 and data.total_train_batch_num>0 and data.total_test_seq_batch>0:
                     weight_for = 0.35*(1-epoch*1.0/15000)+0.5
-                    if epoch % 50 == 0:
+                    if epoch % 10 == 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
-                        origin_dir = read_dicoms('./WU_XIAO_YING/original1')
-                        mask_dir = "./WU_XIAO_YING/artery"
+                        origin_dir = read_dicoms('./ZHANG_YU_KUN/original1')
+                        mask_dir = "./ZHANG_YU_KUN/artery"
                         test_batch_size = batch_size
                         # test_data = tools.Test_data(dicom_dir,input_shape)
                         test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
@@ -315,13 +315,14 @@ class Network:
                         to_be_transformed[e_t:r_s[0]-e_t,e_t:r_s[1]-e_t,e_t:r_s[2]-e_t]+=test_result_array[e_t:r_s[0]-e_t,e_t:r_s[1]-e_t,e_t:r_s[2]-e_t]
                         print np.max(to_be_transformed)
                         print np.min(to_be_transformed)
-                        final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
-                        final_img.SetSpacing(test_data.space)
-                        print "writing full testing result"
-                        if not os.path.exists("./test_result"):
-                            os.makedirs("./test_result")
-                        print './test_result/test_result' + str(epoch) + '.vtk'
-                        ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
+                        if epoch%50 == 0:
+                            final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
+                            final_img.SetSpacing(test_data.space)
+                            print "writing full testing result"
+                            if not os.path.exists("./test_result"):
+                                os.makedirs("./test_result")
+                            print './test_result/test_result' + str(epoch) + '.vtk'
+                            ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
                         if epoch==0:
                             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
                             mask_img.SetSpacing(test_data.space)
@@ -485,7 +486,7 @@ class Network:
             return final_img
 
 if __name__ == "__main__":
-    dicom_dir = "./WU_XIAO_YING/original1"
+    dicom_dir = "./ZHANG_YU_KUN/original1"
     net = Network()
     net.train(config)
     final_img = net.test(dicom_dir)
