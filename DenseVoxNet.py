@@ -13,7 +13,7 @@ import gc
 resolution = 64
 batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.0005
+ori_lr = 0.0001
 power = 0.9
 GPU0 = '1'
 input_shape = [64,64,128]
@@ -120,14 +120,14 @@ class Network:
                 layers_d.append(next_input)
 
             ##### final up-sampling
-            bn_1 = tools.Ops.batch_norm(layers_d[-1],'bn_after_dense',training=training)
+            bn_1 = tools.Ops.batch_norm(layers_d[-1],'bn_after_dense_1',training=training)
             relu_1 = tools.Ops.xxlu(bn_1 ,name='relu')
             conv_27 = tools.Ops.conv3d(relu_1,k=1,out_c=original+growth*dense_layer_num*2,str=1,name='conv_up_sample_1')
             deconv_1 = tools.Ops.deconv3d(conv_27,k=2,out_c=128,str=2,name='deconv_up_sample_1')
             concat_up = tf.concat([deconv_1,mid_layer],axis=4)
             deconv_2 = tools.Ops.deconv3d(concat_up,k=2,out_c=64,str=2,name='deconv_up_sample_2')
-
-            predict_map = tools.Ops.conv3d(deconv_2,k=1,out_c=1,str=1,name='predict_map')
+            bn_2 = tools.Ops.batch_norm(deconv_2,'bn_after_dense_2',training=training)
+            predict_map = tools.Ops.conv3d(bn_2,k=1,out_c=1,str=1,name='predict_map')
 
             # zoom in layer
             # predict_map_normed = tools.Ops.batch_norm(predict_map,'bn_after_dense_1',training=training)
@@ -253,8 +253,8 @@ class Network:
                     if epoch % 10 == 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
-                        origin_dir = read_dicoms('./ZHANG_YU_KUN/original1')
-                        mask_dir = "./ZHANG_YU_KUN/artery"
+                        origin_dir = read_dicoms('./FU_LI_JUN/original1')
+                        mask_dir = "./FU_LI_JUN/artery"
                         test_batch_size = batch_size
                         # test_data = tools.Test_data(dicom_dir,input_shape)
                         test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
@@ -486,7 +486,7 @@ class Network:
             return final_img
 
 if __name__ == "__main__":
-    dicom_dir = "./ZHANG_YU_KUN/original1"
+    dicom_dir = "./FU_LI_JUN/original1"
     net = Network()
     net.train(config)
     final_img = net.test(dicom_dir)
