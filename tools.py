@@ -95,28 +95,16 @@ class Data:
         self.train_names = config['train_names']
         self.test_names = config['test_names']
         self.data_size = config['data_size']
-        # self.X_train_files, self.Y_train_files = self.load_X_Y_files_paths_all( self.train_names,label='train')
-        # self.X_test_files, self.Y_test_files = self.load_X_Y_files_paths_all(self.test_names,label='test')
-        # print "X_train_files:",len(self.X_train_files)
-        # print "X_test_files:",len(self.X_test_files)
 
         self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config['meta_path'],self.epoch)
 
-        # self.total_train_batch_num = int(len(self.X_train_files) // self.batch_size) -1
-        # self.total_test_seq_batch = int(len(self.X_test_files) // self.batch_size) -1
         print "train_numbers:",len(self.train_numbers),"---",self.train_numbers
         print "test_numbers:",len(self.test_numbers),"---",self.test_numbers
         self.total_train_batch_num,self.train_locs = self.load_X_Y_train_batch_num()
         self.total_test_seq_batch,self.test_locs = self.load_X_Y_test_batch_num()
         print "total_train_batch_num: ", self.total_train_batch_num
         print "total_test_seq_batch: ",self.total_test_seq_batch
-        # self.check_data()
         self.shuffle_X_Y_pairs()
-        # testing code
-        # for i in range(0,3):
-        #     X_train_voxels,Y_train_voxels=self.load_X_Y_voxel_train_next_batch()
-        # X_test_voxels,Y_test_voxels=self.load_X_Y_voxel_test_next_batch()
-        # print 123
 
 
     @staticmethod
