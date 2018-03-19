@@ -131,17 +131,18 @@ class Network:
 
                 bn_1 = tools.Ops.batch_norm(layers_d[-1],'bn_after_dense_1',training=training)
                 relu_1 = tools.Ops.xxlu(bn_1 ,name='relu_1')
-                deconv_1 = tools.Ops.deconv3d(relu_1,k=2,out_c=64,str=2,name='deconv_up_sample_2')
+                deconv_1 = tools.Ops.deconv3d(relu_1,k=2,out_c=128,str=2,name='deconv_up_sample_2')
                 concat_up_1 = tf.concat([deconv_1,layers_e[-1]],axis=4,name="concat_up_1")
 
                 bn_2 = tools.Ops.batch_norm(concat_up_1,'bn_after_dense_2',training=training)
                 relu_2 = tools.Ops.xxlu(bn_2, name='relu_2')
-                deconv_2 = tools.Ops.deconv3d(relu_2,k=2,out_c=128,str=2,name='deconv_up_sample_1')
+                deconv_2 = tools.Ops.deconv3d(relu_2,k=2,out_c=64,str=2,name='deconv_up_sample_1')
                 concat_up_2 = tf.concat([deconv_2,down_sample_input],axis=4,name="concat_up_2")
 
                 bn_3 = tools.Ops.batch_norm(concat_up_2, 'bn_after_dense_3', training=training)
                 relu_3 = tools.Ops.xxlu(bn_3, name='relu_2')
-                predict_map = tools.Ops.conv3d(relu_3,k=1,out_c=1,str=1,name='predict_map')
+                conv_up_1 = tools.Ops.conv3d(relu_3,k=3,out_c=32,str=1,name="conv_up_1")
+                predict_map = tools.Ops.conv3d(conv_up_1,k=1,out_c=1,str=1,name='predict_map')
 
                 # zoom in layer
                 # predict_map_normed = tools.Ops.batch_norm(predict_map,'bn_after_dense_1',training=training)
