@@ -21,7 +21,7 @@ output_shape = [64,64,128]
 type_num = 0
 already_trained=0
 epoch_walked=0
-upper_threshold = 0.6
+upper_threshold = 0.65
 
 ###############################################################
 config={}
@@ -75,68 +75,82 @@ class Network:
         growth=12
         dense_layer_num=12
         # input layer
-        X=tf.reshape(X,[batch_size,input_shape[0],input_shape[1],input_shape[2],1])
-        # image reduce layer
-        # conv_input_1=tools.Ops.conv3d(X,k=3,out_c=2,str=2,name='conv_input_down')
-        # conv_input_normed=tools.Ops.batch_norm(conv_input_1, 'bn_dense_0_0', training=training)
-        # network start
-        conv_input=tools.Ops.conv3d(X,k=3,out_c=original,str=2,name='conv_input')
+        with tf.variable_scope("input"):
+            X=tf.reshape(X,[batch_size,input_shape[0],input_shape[1],input_shape[2],1])
+            # image reduce layer
+            # conv_input_1=tools.Ops.conv3d(X,k=3,out_c=2,str=2,name='conv_input_down')
+            # conv_input_normed=tools.Ops.batch_norm(conv_input_1, 'bn_dense_0_0', training=training)
+            # network start
+            down_sample_input = tools.Ops.conv3d(X,k=3,out_c=original,str=1,name='down_sample_input')
+            bn_input = tools.Ops.batch_norm(down_sample_input,"bn_input",training=training)
+            relu_input = tools.Ops.xxlu(bn_input,name="relu_input")
+            down_sample_1=tools.Ops.conv3d(relu_input,k=2,out_c=original,str=2,name='down_sample_1')
         with tf.device('/gpu:'+GPU0):
             ##### dense block 1
-            c_e = []
-            s_e = []
-            layers_e=[]
-            layers_e.append(conv_input)
-            for i in range(dense_layer_num):
-                c_e.append(original+growth*(i+1))
-                s_e.append(1)
-            for j in range(dense_layer_num):
-                layer = tools.Ops.batch_norm(layers_e[-1], 'bn_dense_1_' + str(j), training=training)
-                layer = tools.Ops.xxlu(layer, name='relu')
-                layer = tools.Ops.conv3d(layer,k=3,out_c=growth,str=s_e[j],name='dense_1_'+str(j))
-                next_input = tf.concat([layer,layers_e[-1]],axis=4)
-                layers_e.append(next_input)
+            with tf.variable_scope("dense_block_1"):
+                c_e = []
+                s_e = []
+                layers_e=[]
+                layers_e.append(down_sample_1)
+                for i in range(dense_layer_num):
+                    c_e.append(original+growth*(i+1))
+                    s_e.append(1)
+                for j in range(dense_layer_num):
+                    layer = tools.Ops.batch_norm(layers_e[-1], 'bn_dense_1_' + str(j), training=training)
+                    layer = tools.Ops.xxlu(layer, name='relu')
+                    layer = tools.Ops.conv3d(layer,k=3,out_c=growth,str=s_e[j],name='dense_1_'+str(j))
+                    next_input = tf.concat([layer,layers_e[-1]],axis=4)
+                    layers_e.append(next_input)
 
         # middle down sample
-            mid_layer = tools.Ops.batch_norm(layers_e[-1], 'bn_mid', training=training)
-            mid_layer = tools.Ops.xxlu(mid_layer,name='relu')
-            mid_layer = tools.Ops.conv3d(mid_layer,k=1,out_c=original+growth*dense_layer_num,str=1,name='mid_conv')
-            mid_layer_down = tools.Ops.maxpool3d(mid_layer,k=2,s=2,pad='SAME')
+            with tf.variable_scope("middle_down_sample"):
+                mid_layer = tools.Ops.batch_norm(layers_e[-1], 'bn_mid', training=training)
+                mid_layer = tools.Ops.xxlu(mid_layer,name='relu')
+                mid_layer = tools.Ops.conv3d(mid_layer,k=3,out_c=original+growth*dense_layer_num,str=1,name='mid_conv')
+                mid_layer_down = tools.Ops.maxpool3d(mid_layer,k=2,s=2,pad='SAME')
 
         ##### dense block 
         with tf.device('/gpu:'+GPU0):
-            c_d = []
-            s_d = []
-            layers_d = []
-            layers_d.append(mid_layer_down)
-            for i in range(dense_layer_num):
-                c_d.append(original+growth*(dense_layer_num+i+1))
-                s_d.append(1)
-            for j in range(dense_layer_num):
-                layer = tools.Ops.batch_norm(layers_d[-1],'bn_dense_2_'+str(j),training=training)
-                layer = tools.Ops.xxlu(layer, name='relu')
-                layer = tools.Ops.conv3d(layer,k=3,out_c=growth,str=s_d[j],name='dense_2_'+str(j))
-                next_input = tf.concat([layer,layers_d[-1]],axis=4)
-                layers_d.append(next_input)
+            with tf.variable_scope("dense_block_2"):
+                c_d = []
+                s_d = []
+                layers_d = []
+                layers_d.append(mid_layer_down)
+                for i in range(dense_layer_num):
+                    c_d.append(original+growth*(dense_layer_num+i+1))
+                    s_d.append(1)
+                for j in range(dense_layer_num):
+                    layer = tools.Ops.batch_norm(layers_d[-1],'bn_dense_2_'+str(j),training=training)
+                    layer = tools.Ops.xxlu(layer, name='relu')
+                    layer = tools.Ops.conv3d(layer,k=3,out_c=growth,str=s_d[j],name='dense_2_'+str(j))
+                    next_input = tf.concat([layer,layers_d[-1]],axis=4)
+                    layers_d.append(next_input)
 
             ##### final up-sampling
-            bn_1 = tools.Ops.batch_norm(layers_d[-1],'bn_after_dense_1',training=training)
-            relu_1 = tools.Ops.xxlu(bn_1 ,name='relu')
-            conv_27 = tools.Ops.conv3d(relu_1,k=1,out_c=original+growth*dense_layer_num*2,str=1,name='conv_up_sample_1')
-            deconv_1 = tools.Ops.deconv3d(conv_27,k=2,out_c=128,str=2,name='deconv_up_sample_1')
-            concat_up = tf.concat([deconv_1,mid_layer],axis=4)
-            deconv_2 = tools.Ops.deconv3d(concat_up,k=2,out_c=64,str=2,name='deconv_up_sample_2')
-            bn_2 = tools.Ops.batch_norm(deconv_2,'bn_after_dense_2',training=training)
-            predict_map = tools.Ops.conv3d(bn_2,k=1,out_c=1,str=1,name='predict_map')
+            with tf.variable_scope("up_sample"):
 
-            # zoom in layer
-            # predict_map_normed = tools.Ops.batch_norm(predict_map,'bn_after_dense_1',training=training)
-            # predict_map_zoomed = tools.Ops.deconv3d(predict_map_normed,k=2,out_c=1,str=2,name='deconv_zoom_3')
+                bn_1 = tools.Ops.batch_norm(layers_d[-1],'bn_after_dense_1',training=training)
+                relu_1 = tools.Ops.xxlu(bn_1 ,name='relu_1')
+                deconv_1 = tools.Ops.deconv3d(relu_1,k=2,out_c=64,str=2,name='deconv_up_sample_2')
+                concat_up_1 = tf.concat([deconv_1,layers_e[-1]],axis=4,name="concat_up_1")
 
-            vox_no_sig = predict_map
-            # vox_no_sig = tools.Ops.xxlu(vox_no_sig,name='relu')
-            vox_sig = tf.sigmoid(predict_map)
-            vox_sig_modified = tf.maximum(vox_sig-threshold,0.01)
+                bn_2 = tools.Ops.batch_norm(concat_up_1,'bn_after_dense_2',training=training)
+                relu_2 = tools.Ops.xxlu(bn_2, name='relu_2')
+                deconv_2 = tools.Ops.deconv3d(relu_2,k=2,out_c=128,str=2,name='deconv_up_sample_1')
+                concat_up_2 = tf.concat([deconv_2,down_sample_input],axis=4,name="concat_up_2")
+
+                bn_3 = tools.Ops.batch_norm(concat_up_2, 'bn_after_dense_3', training=training)
+                relu_3 = tools.Ops.xxlu(bn_3, name='relu_2')
+                predict_map = tools.Ops.conv3d(relu_3,k=1,out_c=1,str=1,name='predict_map')
+
+                # zoom in layer
+                # predict_map_normed = tools.Ops.batch_norm(predict_map,'bn_after_dense_1',training=training)
+                # predict_map_zoomed = tools.Ops.deconv3d(predict_map_normed,k=2,out_c=1,str=2,name='deconv_zoom_3')
+            with tf.variable_scope("output"):
+                vox_no_sig = tools.Ops.xxlu(predict_map)
+                # vox_no_sig = tools.Ops.xxlu(vox_no_sig,name='relu')
+                vox_sig = tf.sigmoid(predict_map)
+                vox_sig_modified = tf.maximum(vox_sig-threshold,0.01)
         return vox_sig, vox_sig_modified,vox_no_sig
 
     def dis(self, X, Y,training):

@@ -462,7 +462,7 @@ class Ops:
     def xxlu(x,name='relu'):
         if name =='relu':
             return  Ops.relu(x)
-        if name =='lrelu':
+        else:
             return  Ops.lrelu(x,leak=0.2)
 
     @staticmethod
