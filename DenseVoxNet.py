@@ -238,7 +238,7 @@ class Network:
                     if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                         # actual foreground weight
                         weight_for = 0.35 * (1 - epoch * 1.0 / 15000) + 0.5
-                        if epoch % 5 == 0:
+                        if epoch % 2 == 0 and epoch >0:
                             del data
                             gc.collect()
                             print '********************** FULL TESTING ********************************'
@@ -320,6 +320,7 @@ class Network:
                             print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
                             del test_data
                             gc.collect()
+                        if data == None:
                             data = tools.Data(configure, epoch)
                         data.shuffle_X_Y_pairs()
                         total_train_batch_num = data.total_train_batch_num
