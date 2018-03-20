@@ -333,12 +333,9 @@ class Network:
                         print "calculate ended"
                         if epoch % 8 == 0 and epoch > 0 and i == 0:
                             learning_rate_g = learning_rate_g * power
-                        sess.run([ae_g_optim,dis_optim],feed_dict={X: X_train_batch,
-                                                                   threshold:upper_threshold,
-                                                                   Y: Y_train_batch,
-                                                                   lr: learning_rate_g,
-                                                                   training: True,
-                                                                   w: weight_for})
+                        sess.run([ae_g_optim],feed_dict={X: X_train_batch, threshold:upper_threshold, Y: Y_train_batch, lr: learning_rate_g, training: True, w: weight_for})
+                        sess.run([dis_optim], feed_dict={X: X_train_batch, threshold: upper_threshold, Y: Y_train_batch,
+                                                         lr: learning_rate_g, training: True, w: weight_for})
                         print "training ended"
                         global_step+=1
                         # output some results
