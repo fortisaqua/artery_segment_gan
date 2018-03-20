@@ -179,10 +179,10 @@ class Network:
         # loss function
         # generator loss
         Y_ = tf.reshape(Y, shape=[batch_size, -1])
-        Y_pred_ = tf.reshape(Y_pred, shape=[batch_size, -1])
+        Y_pred_modi_ = tf.reshape(Y_pred_modi, shape=[batch_size, -1])
         w = tf.placeholder(tf.float32)  # foreground weight
-        g_loss = tf.reduce_mean(-tf.reduce_mean(w * Y_ * tf.log(Y_pred_ + 1e-8), reduction_indices=[1]) -
-                                 tf.reduce_mean((1 - w) * (1 - Y_) * tf.log(1 - Y_pred_ + 1e-8),
+        g_loss = tf.reduce_mean(-tf.reduce_mean(w * Y_ * tf.log(Y_pred_modi_ + 1e-8), reduction_indices=[1]) -
+                                 tf.reduce_mean((1 - w) * (1 - Y_) * tf.log(1 - Y_pred_modi_ + 1e-8),
                                                 reduction_indices=[1]))
         # discriminator loss
         gan_d_loss = tf.reduce_mean(XY_fake_pair) - tf.reduce_mean(XY_real_pair)
