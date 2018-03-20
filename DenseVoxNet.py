@@ -25,6 +25,7 @@ epoch_walked=0
 step_walked=0
 upper_threshold = 0.65
 edge_thickness = 15
+test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
@@ -242,8 +243,8 @@ class Network:
                             gc.collect()
                             print '********************** FULL TESTING ********************************'
                             time_begin = time.time()
-                            origin_dir = read_dicoms('./FU_LI_JUN/original1')
-                            mask_dir = "./FU_LI_JUN/artery"
+                            origin_dir = read_dicoms(test_dir+"original1")
+                            mask_dir = test_dir+"artery"
                             test_batch_size = batch_size
                             # test_data = tools.Test_data(dicom_dir,input_shape)
                             test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
