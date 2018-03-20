@@ -225,7 +225,7 @@ class Network:
                 if os.path.isfile(self.train_models_dir + 'model.cptk.data-00000-of-00001'):
                     print "restoring saved model"
                     saver.restore(sess, self.train_models_dir + 'model.cptk')
-                learning_rate_g = ori_lr * pow(power, (epoch_walked / 8))
+                learning_rate_g = ori_lr * pow(power, (epoch_walked / 2))
                 # start training loop
                 global_step = step_walked
                 for epoch in range(epoch_walked,15000):
