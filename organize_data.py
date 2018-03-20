@@ -112,7 +112,7 @@ def get_organized_data_common(meta_path, type, half_size,input_size):
             print e
     return dicom_datas, clipped_datas
 
-def get_organized_data(meta_path, single_size,epoch):
+def get_organized_data(meta_path, single_size,epoch,train_amount):
     rand = random.Random()
     dicom_datas = dict()
     mask_datas = dict()
@@ -120,8 +120,8 @@ def get_organized_data(meta_path, single_size,epoch):
     meta_data = pickle.load(pickle_reader)
     # accept_zeros = rand.sample(meta_data.keys(),8)
     total_keys = meta_data.keys()
-    begin = (epoch*5)%len(total_keys)
-    end = (epoch*5+6)%len(total_keys)
+    begin = (epoch*(train_amount-1))%len(total_keys)
+    end = (epoch*(train_amount-1)+train_amount)%len(total_keys)
     if begin<end:
         to_be_trained = total_keys[begin:end]
     else:

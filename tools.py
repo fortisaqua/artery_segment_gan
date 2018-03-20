@@ -3,9 +3,9 @@ import os
 import re
 from random import shuffle
 import tensorflow as tf
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from mpl_toolkits import mplot3d
+# import matplotlib.pyplot as plt
+# import matplotlib.gridspec as gridspec
+# from mpl_toolkits import mplot3d
 import random
 import organize_data
 from dicom_read import read_dicoms
@@ -89,11 +89,9 @@ class Data:
         self.train_batch_index = 0
         self.test_seq_index = 0
         self.epoch = epoch
-        self.resolution = config['resolution']
         self.batch_size = config['batch_size']
-        
-        self.train_names = config['train_names']
-        self.test_names = config['test_names']
+        self.test_amount = config['test_amount']
+        self.train_amount = config['train_amount']
         self.data_size = config['data_size']
 
         self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config['meta_path'],self.epoch)
@@ -106,158 +104,15 @@ class Data:
         print "total_test_seq_batch: ",self.total_test_seq_batch
         self.shuffle_X_Y_pairs()
 
-
-    @staticmethod
-    def plotFromVoxels(voxels,original):
-        if len(voxels.shape)>3:
-            x_d = voxels.shape[0]
-            y_d = voxels.shape[1]
-            z_d = voxels.shape[2]
-            v = voxels[:,:,:,0]
-            v = np.reshape(v,(x_d,y_d,z_d))
-        else:
-            v = voxels
-        x, y, z = v.nonzero()
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(x, y, z, zdir='z', c='red')
-        print "generated :",str(len(x))
-
-        if len(original.shape)>3:
-            x_d = original.shape[0]
-            y_d = original.shape[1]
-            z_d = original.shape[2]
-            v_ori = original[:,:,:,0]
-            v_ori = np.reshape(v_ori,(x_d,y_d,z_d))
-        else:
-            v_ori = original
-        x, y, z = v_ori.nonzero()
-        fig = plt.figure()
-        ax_ori = fig.add_subplot(111, projection='3d')
-        ax_ori.scatter(x, y, z, zdir='z', c='red')
-        print "orign :", str(len(x))
-
-        plt.show()
-
-    def load_X_Y_files_paths_all(self, obj_names, label='train'):
-        x_str=''
-        y_str=''
-        if label =='train':
-            x_str='X_train_'
-            y_str ='Y_train_'
-
-        elif label == 'test':
-            x_str = 'X_test_'
-            y_str = 'Y_test_'
-
-        else:
-            print "label error!!"
-            exit()
-
-        X_data_files_all = []
-        Y_data_files_all = []
-        for name in obj_names:
-            X_folder = self.config[x_str + name]
-            Y_folder = self.config[y_str + name]
-            X_data_files, Y_data_files = self.load_X_Y_files_paths(X_folder, Y_folder)
-
-            for X_f, Y_f in zip(X_data_files, Y_data_files):
-                if X_f[0:15] != Y_f[0:15]:
-                    print "index inconsistent!!\n"
-                    exit()
-                X_data_files_all.append(X_folder + X_f)
-                Y_data_files_all.append(Y_folder + Y_f)
-        return X_data_files_all, Y_data_files_all
-
-    def load_X_Y_files_paths(self,X_folder, Y_folder):
-        X_data_files = [X_f for X_f in sorted(os.listdir(X_folder))]
-        Y_data_files = [Y_f for Y_f in sorted(os.listdir(Y_folder))]
-
-        return X_data_files, Y_data_files
-
-    def voxel_grid_padding(self,a):
-        x_d = a.shape[0]
-        y_d = a.shape[1]
-        z_d = a.shape[2]
-        channel = a.shape[3]
-        resolution = self.resolution
-        size = [resolution, resolution, resolution,channel]
-        b = np.zeros(size)
-
-        bx_s = 0;bx_e = size[0];by_s = 0;by_e = size[1];bz_s = 0; bz_e = size[2]
-        ax_s = 0;ax_e = x_d;ay_s = 0;ay_e = y_d;az_s = 0;az_e = z_d
-        if x_d > size[0]:
-            ax_s = int((x_d - size[0]) / 2)
-            ax_e = int((x_d - size[0]) / 2) + size[0]
-        else:
-            bx_s = int((size[0] - x_d) / 2)
-            bx_e = int((size[0] - x_d) / 2) + x_d
-
-        if y_d > size[1]:
-            ay_s = int((y_d - size[1]) / 2)
-            ay_e = int((y_d - size[1]) / 2) + size[1]
-        else:
-            by_s = int((size[1] - y_d) / 2)
-            by_e = int((size[1] - y_d) / 2) + y_d
-
-        if z_d > size[2]:
-            az_s = int((z_d - size[2]) / 2)
-            az_e = int((z_d - size[2]) / 2) + size[2]
-        else:
-            bz_s = int((size[2] - z_d) / 2)
-            bz_e = int((size[2] - z_d) / 2) + z_d
-        b[bx_s:bx_e, by_s:by_e, bz_s:bz_e,:] = a[ax_s:ax_e, ay_s:ay_e, az_s:az_e, :]
-
-        return b
-
-    def load_single_voxel_grid(self,path):
-        temp = re.split('_', path.split('.')[-2])
-        x_d = int(temp[len(temp) - 3])
-        y_d = int(temp[len(temp) - 2])
-        z_d = int(temp[len(temp) - 1])
-
-        a = np.loadtxt(path)
-        if len(a)<=0:
-            print " load_single_voxel_grid error: ", path
-            exit()
-
-        voxel_grid = np.zeros((x_d, y_d, z_d,1))
-        for i in a:
-            voxel_grid[int(i[0]), int(i[1]), int(i[2]),0] = 1 # occupied
-
-        #Data.plotFromVoxels(voxel_grid)
-        voxel_grid = self.voxel_grid_padding(voxel_grid)
-        return voxel_grid
-
-    def load_X_Y_voxel_grids(self,X_data_files, Y_data_files):
-        if len(X_data_files) !=self.batch_size or len(Y_data_files)!=self.batch_size:
-            print "load_X_Y_voxel_grids error:", X_data_files, Y_data_files
-            exit()
-
-        X_voxel_grids = []
-        Y_voxel_grids = []
-        index = -1
-        for X_f, Y_f in zip(X_data_files, Y_data_files):
-            index += 1
-            X_voxel_grid = self.load_single_voxel_grid(X_f)
-            X_voxel_grids.append(X_voxel_grid)
-
-            Y_voxel_grid = self.load_single_voxel_grid(Y_f)
-            Y_voxel_grids.append(Y_voxel_grid)
-
-        X_voxel_grids = np.asarray(X_voxel_grids)
-        Y_voxel_grids = np.asarray(Y_voxel_grids)
-        return X_voxel_grids, Y_voxel_grids
-
     def load_X_Y_numbers_special(self,meta_path,epoch):
-        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_organized_data(meta_path,self.data_size,epoch)
+        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_organized_data(meta_path,self.data_size,epoch,self.train_amount)
         numbers=[]
         train_numbers=[]
         test_numbers=[]
         for number in self.mask.keys():
             if len(self.mask[number])>0:
                 numbers.append(number)
-        for i in range(2):
+        for i in range(self.test_amount):
             test_number_temp = numbers[random.randint(0,len(numbers)-1)]
             while test_number_temp in zero_numbers:
                 test_number_temp = numbers[random.randint(0, len(numbers) - 1)]
@@ -285,34 +140,6 @@ class Data:
                 locs.append([number,i])
         return int(total_num / self.batch_size),locs
 
-    def shuffle_X_Y_files(self, label='train'):
-        X_new = []; Y_new = []
-        if label == 'train':
-            X = self.X_train_files; Y = self.Y_train_files
-            self.train_batch_index = 0
-            index = range(len(X))
-            shuffle(index)
-            for i in index:
-                X_new.append(X[i])
-                Y_new.append(Y[i])
-            self.X_train_files = X_new
-            self.Y_train_files = Y_new
-
-        elif label == 'test':
-            X = self.X_test_files; Y = self.Y_test_files
-            self.test_seq_index = 0
-            index = range(len(X))
-            shuffle(index)
-            for i in index:
-                X_new.append(X[i])
-                Y_new.append(Y[i])
-            self.X_test_files = X_new
-            self.Y_test_files = Y_new
-
-        else:
-            print "shuffle_X_Y_files error!\n"
-            exit()
-
     def shuffle_X_Y_pairs(self):
         train_locs_new=[]
         test_locs_new=[]
@@ -330,16 +157,6 @@ class Data:
         self.train_locs=train_locs_new
         self.test_locs=test_locs_new
 
-    ###################### voxel grids
-    def load_X_Y_voxel_grids_train_next_batch(self):
-        X_data_files = self.X_train_files[self.batch_size * self.train_batch_index:self.batch_size * (self.train_batch_index + 1)]
-        Y_data_files = self.Y_train_files[self.batch_size * self.train_batch_index:self.batch_size * (self.train_batch_index + 1)]
-        self.train_batch_index += 1
-        # self.train_batch_index=0
-
-        X_voxel_grids, Y_voxel_grids = self.load_X_Y_voxel_grids(X_data_files, Y_data_files)
-        return X_voxel_grids, Y_voxel_grids
-
     def load_X_Y_voxel_train_next_batch(self):
         temp_locs=self.train_locs[self.batch_size*self.train_batch_index:self.batch_size*(self.train_batch_index+1)]
         X_data_voxels=[]
@@ -350,12 +167,6 @@ class Data:
         self.train_batch_index += 1
         X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
         Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
-        '''
-        X_voxel_grids = np.asarray(X_voxel_grids)
-        Y_voxel_grids = np.asarray(Y_voxel_grids)
-        X_data_voxels=np.asarray(X_data_voxels)
-        Y_data_voxels=np.asarray(Y_data_voxels)
-        '''
         for i in range(len(X_data_voxels)):
             temp_X = X_data_voxels[i][:,:,:]
             temp_y = Y_data_voxels[i][:,:,:]
@@ -365,19 +176,6 @@ class Data:
             Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] = Y_data_voxels[i][:,:,:]
 
         return X_data,Y_data
-
-    def load_X_Y_voxel_grids_test_next_batch(self,fix_sample=False):
-        if fix_sample:
-            random.seed(45)
-        idx = random.sample(range(len(self.X_test_files)), self.batch_size)
-        X_test_files_batch = []
-        Y_test_files_batch = []
-        for i in idx:
-            X_test_files_batch.append(self.X_test_files[i])
-            Y_test_files_batch.append(self.Y_test_files[i])
-
-        X_test_batch, Y_test_batch = self.load_X_Y_voxel_grids(X_test_files_batch, Y_test_files_batch)
-        return X_test_batch, Y_test_batch
 
     def load_X_Y_voxel_test_next_batch(self,fix_sample=False):
         if fix_sample:
