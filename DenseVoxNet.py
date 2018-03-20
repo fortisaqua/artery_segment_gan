@@ -12,7 +12,7 @@ import gc
 
 # global variables
 ###############################################################
-batch_size = 1
+batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
 ori_lr = 0.001
 power = 0.9
