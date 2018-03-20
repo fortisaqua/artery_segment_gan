@@ -14,16 +14,16 @@ import gc
 ###############################################################
 batch_size = 2
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.001
+ori_lr = 0.01
 power = 0.9
 GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 type_num = 0
-already_trained=0
-epoch_walked=0
-step_walked=0
-upper_threshold = 0.65
+already_trained=1
+epoch_walked=1
+step_walked=2869
+upper_threshold = 0.6
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
