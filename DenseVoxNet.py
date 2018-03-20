@@ -304,21 +304,9 @@ class Network:
                                         test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
                             test_result_array = test_data.get_result()
                             print "result shape: ", np.shape(test_result_array)
-                            r_s = np.shape(test_result_array)  # result shape
-                            e_t = edge_thickness  # edge thickness
-                            to_be_transformed = np.zeros(r_s, np.float32)
-                            to_be_transformed[e_t:r_s[0] - e_t, e_t:r_s[1] - e_t,
-                            e_t:r_s[2] - e_t] += test_result_array[e_t:r_s[0] - e_t, e_t:r_s[1] - e_t, e_t:r_s[2] - e_t]
-                            print np.max(to_be_transformed)
-                            print np.min(to_be_transformed)
+                            to_be_transformed = self.post_process(test_result_array)
                             if epoch % 50 == 0:
-                                final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
-                                final_img.SetSpacing(test_data.space)
-                                print "writing full testing result"
-                                if not os.path.exists("./test_result"):
-                                    os.makedirs("./test_result")
-                                print './test_result/test_result' + str(epoch) + '.vtk'
-                                ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
+                                self.output_img(to_be_transformed,test_data.space,epoch)
                             if epoch == 0:
                                 mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
                                 mask_img.SetSpacing(test_data.space)
@@ -382,13 +370,29 @@ class Network:
                                     print e
                             #### model saving
                             if i % 30 == 0 and epoch % 1 == 0:
-                                # regular_train_dir = "./regular/"
-                                # if not os.path.exists(regular_train_dir):
-                                #     os.makedirs(regular_train_dir)
                                 saver.save(sess, save_path=self.train_models_dir + 'model.cptk')
                                 print "epoch:", epoch, " i:", i, "regular model saved!"
                     else:
                         print "bad data , next epoch", epoch
+
+    def post_process(self,test_result_array):
+        r_s = np.shape(test_result_array)  # result shape
+        e_t = edge_thickness  # edge thickness
+        to_be_transformed = np.zeros(r_s, np.float32)
+        to_be_transformed[e_t:r_s[0] - e_t, e_t:r_s[1] - e_t,
+        e_t:r_s[2] - e_t] += test_result_array[e_t:r_s[0] - e_t, e_t:r_s[1] - e_t, e_t:r_s[2] - e_t]
+        print np.max(to_be_transformed)
+        print np.min(to_be_transformed)
+        return to_be_transformed
+
+    def output_img(self,to_be_transformed,spacing,epoch):
+        final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
+        final_img.SetSpacing(spacing)
+        print "writing full testing result"
+        if not os.path.exists("./test_result"):
+            os.makedirs("./test_result")
+        print './test_result/test_result' + str(epoch) + '.vtk'
+        ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
 
     def test(self,dicom_dir):
         # X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
