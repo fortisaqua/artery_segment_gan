@@ -318,12 +318,7 @@ class Network:
                             print "IOU accuracy: ", test_IOU
                             time_end = time.time()
                             print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
-                            del test_data
-                            gc.collect()
-                        try:
-                            data = tools.Data(configure, epoch)
-                        except Exception,e:
-                            print e
+
                         data.shuffle_X_Y_pairs()
                         total_train_batch_num = data.total_train_batch_num
                         print "total_train_batch_num:", total_train_batch_num
