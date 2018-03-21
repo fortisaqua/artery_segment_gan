@@ -236,7 +236,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
-                    weight_for = 1-(config['train_amount']-config['test_amount'])*test_amount/train_amount
+                    weight_for = 1-1.0*(config['train_amount']-config['test_amount'])*data.total_test_seq_batch/data.total_train_batch_num
                     if epoch % 2 == 0 and epoch >0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
@@ -360,6 +360,7 @@ class Network:
                                 accuracy = 2 * np.sum(np.abs(predict_probablity * Y_test_batch)) / np.sum(
                                     np.abs(predict_result) + np.abs(Y_test_batch))
                                 print "epoch:", epoch, " global step: ",global_step, "\nIOU accuracy: ", accuracy, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
+                                print "weight of foreground : ",weight_for
                                 train_summary = sess.run(train_merge_op, feed_dict={block_acc: accuracy})
                                 sum_writer_train.add_summary(train_summary, global_step=global_step)
                             except Exception, e:
