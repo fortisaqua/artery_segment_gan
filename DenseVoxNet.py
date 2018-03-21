@@ -17,7 +17,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
 decay_step = 16
 lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.01
+ori_lr = 0.001
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
@@ -228,7 +228,7 @@ class Network:
             learning_rate_g = ori_lr * pow(power, (epoch_walked / 2))
             # start training loop
             global_step = step_walked
-            for epoch in range(epoch_walked,2):
+            for epoch in range(epoch_walked,15000):
                 if epoch % 5 == 0 and epoch > 0:
                     del data
                     gc.collect()
