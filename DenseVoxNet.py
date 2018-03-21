@@ -236,7 +236,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
-                    weight_for = 0.35 * (1 - epoch * 1.0 / MAX_EPOCH) + 0.5
+                    weight_for = 1-(config['train_amount']-config['test_amount'])*test_amount/train_amount
                     if epoch % 2 == 0 and epoch >0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
