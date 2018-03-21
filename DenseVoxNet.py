@@ -350,6 +350,8 @@ class Network:
                                 predict_result = np.reshape(predict_result,
                                                             [batch_size, input_shape[0], input_shape[1],
                                                              input_shape[2]])
+                                print np.max(Y_test_pred)
+                                print np.min(Y_test_pred)
                                 # IOU
                                 predict_probablity = np.float32((Y_test_modi - 0.01) > 0)
                                 predict_probablity = np.reshape(predict_probablity,
