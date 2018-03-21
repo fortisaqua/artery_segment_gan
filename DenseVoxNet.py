@@ -15,18 +15,19 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
-decay_step = 16
-lr_down = [0.001,0.0002,0.0001]
-ori_lr = 0.001
+decay_step = 24
+ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 type_num = 0
-already_trained=2
-epoch_walked=2
-step_walked=1124
-upper_threshold = 0.6
+already_trained = 0
+epoch_walked = 0
+step_walked = 0
+upper_threshold = 0.5
+MAX_EPOCH = 1500
+test_extra_threshold = 0.3 * epoch_walked/MAX_EPOCH
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
@@ -123,8 +124,9 @@ class Network:
             relu_3 = tools.Ops.xxlu(bn_3, name='relu_2')
             conv_up_1 = tools.Ops.conv3d(relu_3,k=3,out_c=32,str=1,name="conv_up_1")
             predict_map = tools.Ops.conv3d(conv_up_1,k=1,out_c=1,str=1,name='predict_map')
+            predice_bn = tools.Ops.batch_norm(predict_map,"final_bn",training=training)
         with tf.variable_scope("output"):
-            vox_no_sig = tools.Ops.xxlu(predict_map,name="final_relu")
+            vox_no_sig = tools.Ops.xxlu(predice_bn,name="final_relu")
             vox_sig = tf.sigmoid(predict_map)
             vox_sig_modified = tf.maximum(vox_sig-threshold,0.01)
         return vox_sig, vox_sig_modified, vox_no_sig
@@ -141,16 +143,12 @@ class Network:
         with tf.variable_scope("down_sample"):
             for i in range(1,6,1):
                 layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_'+str(i))
-                if i!=5:
-                    # batch normal layer
-                    layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
-                    layer = tools.Ops.xxlu(layer, name='lrelu')
+                # batch normal layer
+                layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
+                layer = tools.Ops.xxlu(layer, name='lrelu')
                 layers_d.append(layer)
-            last_conv = tools.Ops.conv3d(layers_d[-1],k=4,out_c=1,str=1,name="final_conv")
-            last_bn = tools.Ops.batch_norm(last_conv, 'final_bn' , training=training)
-            last_relu = tools.Ops.xxlu(last_bn,name="lrelu")
         with tf.variable_scope("flating"):
-            y = tf.reshape(last_relu,[batch_size,-1])
+            y = tf.reshape(layers_d[-1],[batch_size,-1])
         return tf.nn.sigmoid(y)
 
     def train(self,configure):
@@ -221,14 +219,15 @@ class Network:
             sum_writer_train = tf.summary.FileWriter(self.train_sum_dir, sess.graph)
             sum_write_test = tf.summary.FileWriter(self.test_sum_dir,sess.graph)
             # load model data if pre-trained
-            sess.run(tf.global_variables_initializer())
+            sess.run(tf.group(tf.global_variables_initializer(),
+                              tf.local_variables_initializer()))
             if os.path.isfile(self.train_models_dir + 'model.cptk.data-00000-of-00001'):
                 print "restoring saved model"
                 saver.restore(sess, self.train_models_dir + 'model.cptk')
             learning_rate_g = ori_lr * pow(power, (epoch_walked / 2))
             # start training loop
             global_step = step_walked
-            for epoch in range(epoch_walked,15000):
+            for epoch in range(epoch_walked,MAX_EPOCH):
                 if epoch % 5 == 0 and epoch > 0:
                     del data
                     gc.collect()
@@ -237,7 +236,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
-                    weight_for = 0.35 * (1 - epoch * 1.0 / 15000) + 0.5
+                    weight_for = 0.35 * (1 - epoch * 1.0 / MAX_EPOCH) + 0.5
                     if epoch % 2 == 0 and epoch >0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
@@ -270,7 +269,7 @@ class Network:
                                     feed_dict={X: temp_input,
                                                training: False,
                                                w: weight_for,
-                                               threshold: upper_threshold + 0.1})
+                                               threshold: upper_threshold + test_extra_threshold})
                                 for j in range(test_batch_size):
                                     test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
                             else:
@@ -297,7 +296,7 @@ class Network:
                                     feed_dict={X_temp: temp_input,
                                                training: False,
                                                w: weight_for,
-                                               threshold: upper_threshold + 0.1})
+                                               threshold: upper_threshold + test_extra_threshold})
                                 for j in range(temp_batch_size):
                                     test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
                         test_result_array = test_data.get_result()
@@ -345,7 +344,7 @@ class Network:
                                 X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
                                 g_loss_t, gan_g_loss_t, gan_d_loss_t, Y_test_pred, Y_test_modi, Y_test_pred_nosig = \
                                     sess.run([g_loss, gan_g_loss, gan_d_loss, Y_pred, Y_pred_modi, Y_pred_nosig],
-                                             feed_dict={X: X_test_batch, threshold: upper_threshold + 0.1,
+                                             feed_dict={X: X_test_batch, threshold: upper_threshold + test_extra_threshold,
                                                         Y: Y_test_batch, training: False, w: weight_for})
                                 predict_result = np.float32(Y_test_modi > 0.01)
                                 predict_result = np.reshape(predict_result,
@@ -433,7 +432,7 @@ class Network:
                     Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run([Y_pred, Y_pred_modi, Y_pred_nosig],
                                                                            feed_dict={X: temp_input,
                                                                                       training: False,
-                                                                                      threshold: upper_threshold})
+                                                                                      threshold: upper_threshold + test_extra_threshold})
                     for j in range(test_batch_size):
                         test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
                 else:
@@ -457,7 +456,7 @@ class Network:
                         [Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp],
                         feed_dict={X_temp: temp_input,
                                    training: False,
-                                   threshold: upper_threshold})
+                                   threshold: upper_threshold + test_extra_threshold})
                     for j in range(temp_batch_size):
                         test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
             test_result_array = test_data.get_result()
