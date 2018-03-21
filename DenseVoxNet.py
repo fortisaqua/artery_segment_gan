@@ -15,6 +15,7 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
+decay_step = 16
 lr_down = [0.001,0.0002,0.0001]
 ori_lr = 0.01
 power = 0.9
@@ -32,8 +33,8 @@ config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 2
-config['train_amount'] = 6
+config['test_amount'] = 1
+config['train_amount'] = 3
 ################################################################
 
 class Network:
@@ -323,20 +324,20 @@ class Network:
                     for i in range(total_train_batch_num):
                         X_train_batch, Y_train_batch = data.load_X_Y_voxel_train_next_batch()
                         # calculate loss value
-                        print "calculate begin"
+                        # print "calculate begin"
                         gan_d_loss_c, = sess.run([gan_d_loss],feed_dict={X: X_train_batch, Y: Y_train_batch, training: False,
                                                                                   w: weight_for, threshold: upper_threshold})
                         g_loss_c, gan_g_loss_c = sess.run([g_loss, gan_g_loss],
                                                            feed_dict={X: X_train_batch, Y: Y_train_batch,
                                                                       training: False, w: weight_for,
                                                                       threshold: upper_threshold})
-                        print "calculate ended"
-                        if epoch % 8 == 0 and epoch > 0 and i == 0:
+                        # print "calculate ended"
+                        if epoch % decay_step == 0 and epoch > 0 and i == 0:
                             learning_rate_g = learning_rate_g * power
                         sess.run([ae_g_optim],feed_dict={X: X_train_batch, threshold:upper_threshold, Y: Y_train_batch, lr: learning_rate_g, training: True, w: weight_for})
                         sess.run([dis_optim], feed_dict={X: X_train_batch, threshold: upper_threshold, Y: Y_train_batch,
                                                          lr: learning_rate_g, training: True, w: weight_for})
-                        print "training ended"
+                        # print "training ended"
                         global_step+=1
                         # output some results
                         if i % 2 == 0:
