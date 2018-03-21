@@ -23,9 +23,9 @@ power = 0.9
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 type_num = 0
-already_trained=0
-epoch_walked=0
-step_walked=0
+already_trained=1
+epoch_walked=1
+step_walked=670
 upper_threshold = 0.6
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
@@ -34,7 +34,7 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 1
-config['train_amount'] = 3
+config['train_amount'] = 4
 ################################################################
 
 class Network:
