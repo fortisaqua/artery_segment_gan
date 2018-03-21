@@ -239,8 +239,6 @@ class Network:
                     # actual foreground weight
                     weight_for = 0.35 * (1 - epoch * 1.0 / 15000) + 0.5
                     if epoch % 2 == 0 and epoch >0:
-                        del data
-                        gc.collect()
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
                         origin_dir = read_dicoms(test_dir+"original1")
