@@ -14,7 +14,7 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 2
+batch_size = 1
 decay_step = 24
 ori_lr = 0.001
 power = 0.9
