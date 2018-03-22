@@ -14,20 +14,20 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 1
-decay_step = 24
+batch_size = 2
+decay_step = 12
 ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
-input_shape = [64,64,128]
-output_shape = [64,64,128]
+input_shape = [64,64,64]
+output_shape = [64,64,64]
 type_num = 0
-already_trained = 2
-epoch_walked = 2
-step_walked = 2568
+already_trained = 8
+epoch_walked = 8
+step_walked = 16477
 upper_threshold = 0.5
 MAX_EPOCH = 1500
-test_extra_threshold = 0.2 * epoch_walked/MAX_EPOCH+0.2
+test_extra_threshold = 0.3 * epoch_walked/MAX_EPOCH
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
@@ -230,7 +230,7 @@ class Network:
             if os.path.isfile(self.train_models_dir + 'model.cptk.data-00000-of-00001'):
                 print "restoring saved model"
                 saver.restore(sess, self.train_models_dir + 'model.cptk')
-            learning_rate_g = ori_lr * pow(power, (epoch_walked / 2))
+            learning_rate_g = ori_lr * pow(power, (epoch_walked / decay_step))
             # start training loop
             global_step = step_walked
             for epoch in range(epoch_walked,MAX_EPOCH):
