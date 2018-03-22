@@ -16,15 +16,15 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 1
 decay_step = 6
-ori_lr = 0.01
+ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
-input_shape = [64,64,64]
-output_shape = [64,64,64]
+input_shape = [64,64,128]
+output_shape = [64,64,128]
 type_num = 0
-already_trained = 0
-epoch_walked = 0
-step_walked = 0
+already_trained = 29
+epoch_walked = 29
+step_walked = 23986
 upper_threshold = 0.5
 MAX_EPOCH = 1500
 test_extra_threshold = 0.3 * epoch_walked/MAX_EPOCH
@@ -242,7 +242,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
-                    weight_for = 1-1.0*(config['train_amount']-config['test_amount'])*data.total_test_seq_batch/data.total_train_batch_num
+                    weight_for = 0.8
                     if epoch % 2 == 0 and epoch >0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
