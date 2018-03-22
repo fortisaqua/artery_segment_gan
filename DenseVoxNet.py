@@ -16,7 +16,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
 decay_step = 24
-ori_lr = 0.0001
+ori_lr = 0.001
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
@@ -27,7 +27,7 @@ epoch_walked = 0
 step_walked = 0
 upper_threshold = 0.5
 MAX_EPOCH = 1500
-test_extra_threshold = 0.3 * epoch_walked/MAX_EPOCH
+test_extra_threshold = 0.2 * epoch_walked/MAX_EPOCH+0.2
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
@@ -35,7 +35,7 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 1
-config['train_amount'] = 4
+config['train_amount'] = 5
 ################################################################
 
 class Network:
@@ -67,7 +67,7 @@ class Network:
 
     def ae_u(self,X,training,batch_size,threshold):
         original=16
-        growth=12
+        growth=24
         dense_layer_num=12
         with tf.variable_scope("input"):
             X=tf.reshape(X,[batch_size,input_shape[0],input_shape[1],input_shape[2],1])
@@ -84,16 +84,19 @@ class Network:
                 c_e.append(original+growth*(i+1))
                 s_e.append(1)
             for j in range(dense_layer_num):
-                layer = tools.Ops.batch_norm(layers_e[-1], 'bn_dense_1_' + str(j), training=training)
-                layer = tools.Ops.xxlu(layer, name='relu')
-                layer = tools.Ops.conv3d(layer,k=3,out_c=growth,str=s_e[j],name='dense_1_'+str(j))
+                layer = tools.Ops.batch_norm(layers_e[-1], 'bn_dense_1_1_' + str(j), training=training)
+                layer = tools.Ops.xxlu(layer, name='relu_1')
+                layer = tools.Ops.conv3d(layer,k=1,out_c=growth,str=s_e[j],name='dense_1_1_'+str(j))
+                layer = tools.Ops.batch_norm(layer, 'bn_dense_1_2_' + str(j), training=training)
+                layer = tools.Ops.xxlu(layer, name='relu_2')
+                layer = tools.Ops.conv3d(layer, k=3, out_c=growth, str=s_e[j], name='dense_1_2_' + str(j))
                 next_input = tf.concat([layer,layers_e[-1]],axis=4)
                 layers_e.append(next_input)
         with tf.variable_scope("middle_down_sample"):
             mid_layer = tools.Ops.batch_norm(layers_e[-1], 'bn_mid', training=training)
             mid_layer = tools.Ops.xxlu(mid_layer,name='relu')
-            mid_layer = tools.Ops.conv3d(mid_layer,k=3,out_c=original+growth*dense_layer_num,str=1,name='mid_conv')
-            mid_layer_down = tools.Ops.maxpool3d(mid_layer,k=2,s=2,pad='SAME')
+            mid_layer = tools.Ops.conv3d(mid_layer,k=3,out_c=original+growth*dense_layer_num/2,str=1,name='mid_conv')
+            mid_layer_down = tools.Ops.conv3d(mid_layer,k=2,out_c=original+growth*dense_layer_num/2,str=2,name='down_conv')
         with tf.variable_scope("dense_block_2"):
             c_d = []
             s_d = []
@@ -103,9 +106,12 @@ class Network:
                 c_d.append(original+growth*(dense_layer_num+i+1))
                 s_d.append(1)
             for j in range(dense_layer_num):
-                layer = tools.Ops.batch_norm(layers_d[-1],'bn_dense_2_'+str(j),training=training)
-                layer = tools.Ops.xxlu(layer, name='relu')
-                layer = tools.Ops.conv3d(layer,k=3,out_c=growth,str=s_d[j],name='dense_2_'+str(j))
+                layer = tools.Ops.batch_norm(layers_d[-1],'bn_dense_2_1_'+str(j),training=training)
+                layer = tools.Ops.xxlu(layer, name='relu_1')
+                layer = tools.Ops.conv3d(layer,k=1,out_c=growth,str=s_d[j],name='dense_2_1_'+str(j))
+                layer = tools.Ops.batch_norm(layer,'bn_dense_2_2_'+str(j),training=training)
+                layer = tools.Ops.xxlu(layer, name='relu_2')
+                layer = tools.Ops.conv3d(layer,k=3,out_c=growth,str=s_d[j],name='dense_2_2_'+str(j))
                 next_input = tf.concat([layer,layers_d[-1]],axis=4)
                 layers_d.append(next_input)
         with tf.variable_scope("up_sample"):
