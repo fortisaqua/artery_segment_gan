@@ -14,17 +14,17 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 2
-decay_step = 12
-ori_lr = 0.0001
+batch_size = 1
+decay_step = 6
+ori_lr = 0.01
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,64]
 output_shape = [64,64,64]
 type_num = 0
-already_trained = 8
-epoch_walked = 8
-step_walked = 16477
+already_trained = 0
+epoch_walked = 0
+step_walked = 0
 upper_threshold = 0.5
 MAX_EPOCH = 1500
 test_extra_threshold = 0.3 * epoch_walked/MAX_EPOCH
@@ -67,8 +67,8 @@ class Network:
 
     def ae_u(self,X,training,batch_size,threshold):
         original=16
-        growth=24
-        dense_layer_num=12
+        growth=16
+        dense_layer_num=16
         with tf.variable_scope("input"):
             X=tf.reshape(X,[batch_size,input_shape[0],input_shape[1],input_shape[2],1])
             down_sample_input = tools.Ops.conv3d(X,k=3,out_c=original,str=1,name='down_sample_input')
