@@ -14,20 +14,20 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 1
-decay_step = 6
-ori_lr = 0.0001
+batch_size = 2
+decay_step = 12
+ori_lr = 0.001
 power = 0.9
 # GPU0 = '1'
-input_shape = [64,64,128]
-output_shape = [64,64,128]
+input_shape = [64,64,64]
+output_shape = [64,64,64]
 type_num = 0
-already_trained = 29
-epoch_walked = 29
-step_walked = 23986
-upper_threshold = 0.5
+already_trained = 0
+epoch_walked = 0
+step_walked = 0
+upper_threshold = 0.6
 MAX_EPOCH = 1500
-test_extra_threshold = 0.3 * epoch_walked/MAX_EPOCH
+test_extra_threshold = 0.1 * epoch_walked/MAX_EPOCH + 0.1
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
@@ -35,7 +35,7 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 1
-config['train_amount'] = 5
+config['train_amount'] = 3
 ################################################################
 
 class Network:
