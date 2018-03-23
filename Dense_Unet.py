@@ -13,7 +13,7 @@ import gc
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
 decay_step = 12
 ori_lr = 0.001
