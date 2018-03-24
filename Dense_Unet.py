@@ -15,18 +15,21 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 1
-decay_step = 12
 ori_lr = 0.0003
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-type_num = 0
-already_trained = 0
-epoch_walked = 0
-step_walked = 0
+epoch_walked = 6
+step_walked = 5890
 upper_threshold = 0.6
-MAX_EPOCH = 1000
+MAX_EPOCH = 2000
+re_example_epoch = 2
+total_test_epoch = 4
+show_step = 10
+block_test_step = 20
+model_save_step = 50
+output_epoch = total_test_epoch * 10
 test_extra_threshold = 0.1 * epoch_walked/MAX_EPOCH + 0.1
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
@@ -36,6 +39,7 @@ config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 1
 config['train_amount'] = 4
+decay_step = 2 * 12 / (config['train_amount'] - 1)
 ################################################################
 
 class Network:
@@ -177,7 +181,7 @@ class Network:
 
     def train(self,configure):
         # data
-        data = tools.Data(configure, epoch_walked)
+        data = tools.Data(configure, epoch_walked/re_example_epoch)
         # network
         X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
         Y = tf.placeholder(shape=[batch_size, output_shape[0], output_shape[1], output_shape[2]], dtype=tf.float32)
@@ -253,16 +257,16 @@ class Network:
             # start training loop
             global_step = step_walked
             for epoch in range(epoch_walked, MAX_EPOCH):
-                if epoch % 5 == 0 and epoch > 0:
+                if epoch % re_example_epoch == 0 and epoch > 0:
                     del data
                     gc.collect()
-                    data = tools.Data(configure, epoch)
+                    data = tools.Data(configure, epoch/re_example_epoch)
                 train_amount = len(data.train_numbers)
                 test_amount = len(data.test_numbers)
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
                     weight_for = 0.5 + (1-1.0*epoch/MAX_EPOCH)*0.35
-                    if epoch % 2 == 0 and epoch > 0:
+                    if epoch % total_test_epoch == 0 and epoch > 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
                         origin_dir = read_dicoms(test_dir + "original1")
@@ -327,7 +331,7 @@ class Network:
                         test_result_array = test_data.get_result()
                         print "result shape: ", np.shape(test_result_array)
                         to_be_transformed = self.post_process(test_result_array)
-                        if epoch % 50 == 0:
+                        if epoch % output_epoch == 0:
                             self.output_img(to_be_transformed, test_data.space, epoch)
                         if epoch == 0:
                             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
@@ -336,7 +340,7 @@ class Network:
                         test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
                                 np.sum(to_be_transformed) + np.sum(array_mask))
                         test_summary = sess.run(test_merge_op, feed_dict={total_acc: test_IOU})
-                        sum_write_test.add_summary(test_summary, global_step=epoch * 6)
+                        sum_write_test.add_summary(test_summary, global_step=epoch)
                         print "IOU accuracy: ", test_IOU
                         time_end = time.time()
                         print '******************** time of full testing: ' + str(
@@ -356,7 +360,7 @@ class Network:
                                                                      training: False, w: weight_for,
                                                                      threshold: upper_threshold})
                         # print "calculate ended"
-                        if epoch % decay_step == 0 and epoch > 0 and i == 0:
+                        if epoch % decay_step == 0 and epoch > epoch_walked and i == 0:
                             learning_rate_g = learning_rate_g * power
                         sess.run([ae_g_optim],
                                  feed_dict={X: X_train_batch, threshold: upper_threshold, Y: Y_train_batch,
@@ -366,9 +370,9 @@ class Network:
                         # print "training ended"
                         global_step += 1
                         # output some results
-                        if i % 2 == 0:
+                        if i % show_step == 0:
                             print "epoch:", epoch, " i:", i, " train ae loss:", g_loss_c, " gan g loss:", gan_g_loss_c, " gan d loss:", gan_d_loss_c, " learning rate: ", learning_rate_g
-                        if i % 20 == 0 and epoch % 1 == 0:
+                        if i % block_test_step == 0 and epoch % 1 == 0:
                             try:
                                 X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
                                 g_loss_t, gan_g_loss_t, gan_d_loss_t, Y_test_pred, Y_test_modi, Y_test_pred_nosig = \
@@ -391,12 +395,13 @@ class Network:
                                     np.abs(predict_result) + np.abs(Y_test_batch))
                                 print "epoch:", epoch, " global step: ", global_step, "\nIOU accuracy: ", accuracy, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
                                 print "weight of foreground : ", weight_for
+                                print "upper threshold of testing",(upper_threshold + test_extra_threshold)
                                 train_summary = sess.run(train_merge_op, feed_dict={block_acc: accuracy})
                                 sum_writer_train.add_summary(train_summary, global_step=global_step)
                             except Exception, e:
                                 print e
                         #### model saving
-                        if i % 30 == 0 and epoch % 1 == 0:
+                        if i % model_save_step == 0 and epoch % 1 == 0:
                             saver.save(sess, save_path=self.train_models_dir + 'model.cptk')
                             print "epoch:", epoch, " i:", i, "regular model saved!"
                 else:
