@@ -165,11 +165,12 @@ class Network:
             layers_d.append(layer)
         with tf.variable_scope("down_sample"):
             for i in range(1,6,1):
-                layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_'+str(i))
-                # batch normal layer
-                layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
-                layer = tools.Ops.xxlu(layer, name='lrelu')
-                layers_d.append(layer)
+                with tf.variable_scope("norm_block_"+str(i)):
+                    layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_'+str(i))
+                    # batch normal layer
+                    layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
+                    layer = tools.Ops.xxlu(layer, name='lrelu')
+                    layers_d.append(layer)
         with tf.variable_scope("flating"):
             y = tf.reshape(layers_d[-1],[batch_size,-1])
         return tf.nn.sigmoid(y)
