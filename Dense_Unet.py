@@ -22,9 +22,9 @@ power = 0.9
 input_shape = [64,64,64]
 output_shape = [64,64,64]
 type_num = 0
-already_trained = 0
-epoch_walked = 0
-step_walked = 0
+already_trained = 27
+epoch_walked = 27
+step_walked = 35658
 upper_threshold = 0.6
 MAX_EPOCH = 1500
 test_extra_threshold = 0.1 * epoch_walked/MAX_EPOCH + 0.1
@@ -264,7 +264,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
-                    weight_for = 1-1.0*(config['train_amount']-config['test_amount']*2)*data.total_test_seq_batch/data.total_train_batch_num
+                    weight_for = 0.5 + (1-1.0*epoch/MAX_EPOCH)*0.35
                     if epoch % 2 == 0 and epoch > 0:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
