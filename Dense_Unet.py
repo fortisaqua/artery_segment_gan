@@ -40,10 +40,10 @@ config['train_amount'] = 4
 
 class Network:
     def __init__(self):
-        self.train_models_dir = './V_train_models/'
-        self.train_sum_dir = './V_sum/train/'
-        self.test_results_dir = './V_test_results/'
-        self.test_sum_dir = './V_sum/test/'
+        self.train_models_dir = './D_train_models/'
+        self.train_sum_dir = './D_sum/train/'
+        self.test_results_dir = './D_test_results/'
+        self.test_sum_dir = './D_sum/test/'
 
         if os.path.exists(self.test_results_dir):
             shutil.rmtree(self.test_results_dir)
