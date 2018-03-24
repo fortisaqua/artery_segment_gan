@@ -14,19 +14,19 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 2
+batch_size = 1
 decay_step = 12
 ori_lr = 0.0003
 power = 0.9
 # GPU0 = '1'
-input_shape = [64,64,64]
-output_shape = [64,64,64]
+input_shape = [64,64,128]
+output_shape = [64,64,128]
 type_num = 0
 already_trained = 0
 epoch_walked = 0
 step_walked = 0
 upper_threshold = 0.6
-MAX_EPOCH = 1500
+MAX_EPOCH = 1000
 test_extra_threshold = 0.1 * epoch_walked/MAX_EPOCH + 0.1
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
