@@ -22,9 +22,9 @@ power = 0.9
 input_shape = [64,64,64]
 output_shape = [64,64,64]
 type_num = 0
-already_trained = 27
-epoch_walked = 27
-step_walked = 35658
+already_trained = 0
+epoch_walked = 0
+step_walked = 0
 upper_threshold = 0.6
 MAX_EPOCH = 1500
 test_extra_threshold = 0.1 * epoch_walked/MAX_EPOCH + 0.1
@@ -166,16 +166,12 @@ class Network:
         with tf.variable_scope("down_sample"):
             for i in range(1,6,1):
                 layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_'+str(i))
-                if i!=5:
-                    # batch normal layer
-                    layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
-                    layer = tools.Ops.xxlu(layer, name='lrelu')
+                # batch normal layer
+                layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
+                layer = tools.Ops.xxlu(layer, name='lrelu')
                 layers_d.append(layer)
-            last_conv = tools.Ops.conv3d(layers_d[-1],k=4,out_c=1,str=1,name="final_conv")
-            last_bn = tools.Ops.batch_norm(last_conv, 'final_bn' , training=training)
-            last_relu = tools.Ops.xxlu(last_bn,name="lrelu")
         with tf.variable_scope("flating"):
-            y = tf.reshape(last_relu,[batch_size,-1])
+            y = tf.reshape(layers_d[-1],[batch_size,-1])
         return tf.nn.sigmoid(y)
 
     def train(self,configure):
