@@ -20,8 +20,8 @@ power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 0
-step_walked = 0
+epoch_walked = 10
+step_walked = 13950
 upper_threshold = 0.65
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -37,8 +37,8 @@ config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 1
-config['train_amount'] = 4
+config['test_amount'] = 2
+config['train_amount'] = 8
 decay_step = 2 * 12 / (config['train_amount'] - 1)
 ################################################################
 
