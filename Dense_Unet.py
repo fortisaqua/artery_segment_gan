@@ -121,9 +121,9 @@ class Network:
             bn_1 = tools.Ops.batch_norm(predict_conv_1,"bn_predict_1",training)
             relu_1 = tools.Ops.xxlu(bn_1, name="relu_predict_1")
             predict_conv_2 = tools.Ops.conv3d(relu_1, k=1, out_c=1, str=1, name="conv_predict_2")
-            bn_2 = tools.Ops.batch_norm(predict_conv_2,"bn_predict_2",training)
-            relu_2 = tools.Ops.xxlu(bn_2, name="relu_predict_2")
-            vox_sig = tf.sigmoid(relu_2)
+            # bn_2 = tools.Ops.batch_norm(predict_conv_2,"bn_predict_2",training)
+            relu_2 = tools.Ops.xxlu(predict_conv_2, name="relu_predict_2")
+            vox_sig = tf.sigmoid(predict_conv_2)
             vox_sig_modified = tf.maximum(vox_sig - threshold, 0.01)
         return vox_sig,vox_sig_modified,relu_2
 
@@ -171,9 +171,9 @@ class Network:
             for i in range(1,6,1):
                 with tf.variable_scope("norm_block_"+str(i)):
                     layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_'+str(i))
+                    layer = tools.Ops.xxlu(layer, name='lrelu')
                     # batch normal layer
                     layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
-                    layer = tools.Ops.xxlu(layer, name='lrelu')
                     layers_d.append(layer)
         with tf.variable_scope("flating"):
             y = tf.reshape(layers_d[-1],[batch_size,-1])
