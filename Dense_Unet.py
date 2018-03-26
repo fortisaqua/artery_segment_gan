@@ -15,14 +15,14 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 1
-ori_lr = 0.0003
+ori_lr = 0.003
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 41
-step_walked = 62880
-upper_threshold = 0.65
+epoch_walked = 0
+step_walked = 0
+upper_threshold = 0.8
 MAX_EPOCH = 2000
 re_example_epoch = 2
 total_test_epoch = 4
@@ -95,7 +95,7 @@ class Network:
             down_sample_input = tools.Ops.conv3d(X, k=3, out_c=size, str=1, name='down_sample_input')
             bn_input = tools.Ops.batch_norm(down_sample_input, "bn_input", training=training)
             relu_input = tools.Ops.xxlu(bn_input, name="relu_input")
-            down_sample = tools.Ops.conv3d(relu_input, k=2, out_c=size, str=str, name='down_sample')
+            down_sample = tools.Ops.conv3d(relu_input, k=str, out_c=size, str=str, name='down_sample')
         return down_sample
 
     def Up_Sample(self,X,name,str,training,size):
@@ -144,7 +144,9 @@ class Network:
 
         dense_2 = self.Dense_Block(down_2,"dense_block_2",dense_layer_num,growth,training)
 
-        up_input_1 = self.Concat([down_2,dense_2],axis=4,size=original*2,name="concat_up_1")
+        up_input_1 = self.Concat([down_2,dense_2,
+                                  self.Down_Sample(dense_1,"cross_1",2,training,original),
+                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=original*3,name="concat_up_1")
         up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,original*2)
 
         dense_input_3 = self.Concat([up_1,dense_1],axis=4,size=original*2,name="concat_dense_3")
@@ -163,18 +165,17 @@ class Network:
             X = tf.reshape(X,[batch_size,input_shape[0],input_shape[1],input_shape[2],1])
             Y = tf.reshape(Y,[batch_size,output_shape[0],output_shape[1],output_shape[2],1])
             layer = tf.concat([X,Y],axis=4)
-            c_d = [1,2,64,128,256,512]
-            s_d = [0,2,2,2,2,2]
+            c_d = [1,2,64,128,256]
+            s_d = [0,2,2,2,2]
             layers_d =[]
             layers_d.append(layer)
         with tf.variable_scope("down_sample"):
-            for i in range(1,6,1):
-                with tf.variable_scope("norm_block_"+str(i)):
-                    layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_'+str(i))
-                    layer = tools.Ops.xxlu(layer, name='lrelu')
-                    # batch normal layer
-                    layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
-                    layers_d.append(layer)
+            for i in range(1,5,1):
+                layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name="dis_"+str(i))
+                layer = tools.Ops.batch_norm(layer,"bn_dis_"+str(i),training)
+                if i!=4:
+                    layer = tools.Ops.xxlu(layer,name="lrelu")
+                layers_d.append(layer)
         with tf.variable_scope("flating"):
             y = tf.reshape(layers_d[-1],[batch_size,-1])
         return tf.nn.sigmoid(y)
