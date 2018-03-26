@@ -400,7 +400,11 @@ class Network:
                                 print "epoch:", epoch, " global step: ", global_step, "\nIOU accuracy: ", accuracy, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
                                 print "weight of foreground : ", weight_for
                                 print "upper threshold of testing",(upper_threshold + test_extra_threshold)
-                                train_summary = sess.run(train_merge_op, feed_dict={block_acc: accuracy,threshold: upper_threshold + test_extra_threshold})
+                                train_summary = sess.run(train_merge_op, feed_dict={block_acc: accuracy,
+                                                                                    X: X_test_batch,
+                                                                                    threshold: upper_threshold + test_extra_threshold,
+                                                                                    Y: Y_test_batch, training: False,
+                                                                                    w: weight_for})
                                 sum_writer_train.add_summary(train_summary, global_step=global_step)
                             except Exception, e:
                                 print e
