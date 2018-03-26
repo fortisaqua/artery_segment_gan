@@ -15,13 +15,13 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 1
-ori_lr = 0.003
+ori_lr = 0.0003
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 3
-step_walked = 8360
+epoch_walked = 5
+step_walked = 13690
 upper_threshold = 0.5
 MAX_EPOCH = 2000
 re_example_epoch = 2
