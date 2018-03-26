@@ -15,13 +15,13 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 1
-ori_lr = 0.0003
+ori_lr = 0.0005
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 5
-step_walked = 13690
+epoch_walked = 9
+step_walked = 19390
 upper_threshold = 0.5
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -38,7 +38,7 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 8
+config['train_amount'] = 6
 decay_step = 2 * 12 / (config['train_amount'] - 1)
 ################################################################
 
