@@ -370,7 +370,7 @@ class Network:
                                  feed_dict={X: X_train_batch, threshold: upper_threshold, Y: Y_train_batch,
                                             lr: learning_rate_g, training: True, w: weight_for})
                         sess.run([dis_optim], feed_dict={X: X_train_batch, threshold: upper_threshold, Y: Y_train_batch,
-                                                         lr: learning_rate_g, training: True, w: weight_for})
+                                                         lr: learning_rate_g/5, training: True, w: weight_for})
                         # print "training ended"
                         global_step += 1
                         # output some results
