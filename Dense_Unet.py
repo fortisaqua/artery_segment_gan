@@ -20,8 +20,8 @@ power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 0
-step_walked = 0
+epoch_walked = 3
+step_walked = 7790
 upper_threshold = 0.8
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -196,14 +196,6 @@ class Network:
         with tf.variable_scope('discriminator', reuse=True):
             XY_fake_pair = self.dis(X, Y_pred, training)
 
-        # accuracy
-        block_acc = tf.placeholder(tf.float32)
-        total_acc = tf.placeholder(tf.float32)
-        train_sum = tf.summary.scalar("train_block_accuracy", block_acc)
-        test_sum = tf.summary.scalar("total_test_accuracy", total_acc)
-        train_merge_op = tf.summary.merge([train_sum])
-        test_merge_op = tf.summary.merge([test_sum])
-
         # loss function
         # generator loss
         Y_ = tf.reshape(Y, shape=[batch_size, -1])
@@ -212,6 +204,7 @@ class Network:
         g_loss = tf.reduce_mean(-tf.reduce_mean(w * Y_ * tf.log(Y_pred_modi_ + 1e-8), reduction_indices=[1]) -
                                 tf.reduce_mean((1 - w) * (1 - Y_) * tf.log(1 - Y_pred_modi_ + 1e-8),
                                                reduction_indices=[1]))
+        g_loss_sum = tf.summary.scalar("generator cross entropy",g_loss)
         # discriminator loss
         gan_d_loss = tf.reduce_mean(XY_fake_pair) - tf.reduce_mean(XY_real_pair)
         alpha = tf.random_uniform(shape=[batch_size, input_shape[0] * input_shape[1] * input_shape[2]], minval=0.0,
@@ -225,12 +218,14 @@ class Network:
         slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
         gradient_penalty = tf.reduce_mean((slopes - 1.0) ** 2)
         gan_d_loss += 10 * gradient_penalty
+        gan_d_loss_sum = tf.summary.scalar("total loss of discriminator",gan_d_loss)
 
         # generator loss with gan loss
         gan_g_loss = -tf.reduce_mean(XY_fake_pair)
         gan_g_w = 5
         ae_w = 100 - gan_g_w
         ae_gan_g_loss = ae_w * g_loss + gan_g_w * gan_g_loss
+        ae_g_loss_sum = tf.summary.scalar("total loss of generator",ae_gan_g_loss)
 
         # trainers
         ae_var = [var for var in tf.trainable_variables() if var.name.startswith('generator')]
@@ -239,6 +234,14 @@ class Network:
             ae_gan_g_loss, var_list=ae_var)
         dis_optim = tf.train.AdamOptimizer(learning_rate=lr, beta1=0.9, beta2=0.999, epsilon=1e-8).minimize(
             gan_d_loss, var_list=dis_var)
+
+        # accuracy
+        block_acc = tf.placeholder(tf.float32)
+        total_acc = tf.placeholder(tf.float32)
+        train_sum = tf.summary.scalar("train_block_accuracy", block_acc)
+        test_sum = tf.summary.scalar("total_test_accuracy", total_acc)
+        train_merge_op = tf.summary.merge([train_sum,ae_g_loss_sum,gan_d_loss_sum,g_loss_sum])
+        test_merge_op = tf.summary.merge([test_sum])
 
         saver = tf.train.Saver(max_to_keep=1)
         # config = tf.ConfigProto(allow_soft_placement=True)
@@ -356,7 +359,7 @@ class Network:
                         gan_d_loss_c, = sess.run([gan_d_loss],
                                                  feed_dict={X: X_train_batch, Y: Y_train_batch, training: False,
                                                             w: weight_for, threshold: upper_threshold})
-                        g_loss_c, gan_g_loss_c = sess.run([g_loss, gan_g_loss],
+                        g_loss_c, gan_g_loss_c = sess.run([g_loss, ae_gan_g_loss],
                                                           feed_dict={X: X_train_batch, Y: Y_train_batch,
                                                                      training: False, w: weight_for,
                                                                      threshold: upper_threshold})
@@ -377,7 +380,7 @@ class Network:
                             try:
                                 X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
                                 g_loss_t, gan_g_loss_t, gan_d_loss_t, Y_test_pred, Y_test_modi, Y_test_pred_nosig = \
-                                    sess.run([g_loss, gan_g_loss, gan_d_loss, Y_pred, Y_pred_modi, Y_pred_nosig],
+                                    sess.run([g_loss, ae_gan_g_loss, gan_d_loss, Y_pred, Y_pred_modi, Y_pred_nosig],
                                              feed_dict={X: X_test_batch,
                                                         threshold: upper_threshold + test_extra_threshold,
                                                         Y: Y_test_batch, training: False, w: weight_for})
