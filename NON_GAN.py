@@ -14,16 +14,18 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 1
+batch_size = 2
 ori_lr = 0.0002
 power = 0.9
 # GPU0 = '1'
+# [artery , airway , background]
+weights = [0.8,0.1,0.1]
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 epoch_walked = 0
 step_walked = 0
 MAX_EPOCH = 2000
-class_num = 2
+class_num = 3
 re_example_epoch = 2
 total_test_epoch = 4
 show_step = 10
@@ -134,7 +136,9 @@ class Network:
             predict_conv_2 = tools.Ops.conv3d(relu_1, k=1, out_c=num_class, str=1, name="conv_predict_2")
             bn_2 = tools.Ops.batch_norm(predict_conv_2,"bn_predict_2",training)
             relu_2 = tools.Ops.xxlu(bn_2, name="relu_predict_2")
-        return relu_2
+            pred = tf.nn.softmax(relu_2,dim=-1,name="classify_probability")
+            pred_label = tf.arg_max(pred,dimension=-1)
+        return relu_2,pred,pred_label
 
     def E_Loss(self,logits,label):
         return tf.nn.softmax_cross_entropy_with_logits(labels=label,logits=logits,dim=-1)
@@ -172,17 +176,49 @@ class Network:
         return self.Pixel_Classifier(predict_input,"segment",training,class_num)
 
     def train(self,configure):
-        # data
-        data = tools.Data(configure, epoch_walked/re_example_epoch)
         # network
         X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
         Y = tf.placeholder(shape=[batch_size, output_shape[0], output_shape[1], output_shape[2],class_num], dtype=tf.float32)
         lr = tf.placeholder(tf.float32)
         training = tf.placeholder(tf.bool)
         with tf.variable_scope('segment'):
-            pixel_logits = self.Segmentor(X, training, batch_size)
+            pixel_logits,prob,pred_label = self.Segmentor(X, training, batch_size)
         with tf.variable_scope('loss'):
             pixel_loss = self.E_Loss(pixel_logits,Y)
+
+        #  weight map
+        weight_map = tf.convert_to_tensor(np.zeros(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]]),dtype=tf.float32)
+        pred_masks = []
+        for i in range(class_num):
+            pred_masks.append(tf.cast(tf.equal(pred_label,i),tf.float32))
+        for i in range(class_num):
+            weight_map = weight_map+weights[i]*pred_masks[i]
+
+        #  weighted loss
+        enhanced_loss = weight_map * pixel_loss
+
+        #  accuracy
+        accuracys = []
+        for i in range(class_num):
+            accuracys.append(tf.reduce_mean(tf.cast(tf.equal(pred_masks[i],Y[:,:,:,:,i]),tf.float32)))
+        # [artery , airway , background]
+        total_acc = tf.placeholder(tf.float32)
+        artery_acc_sum = tf.summary.scalar("artery_accuracy",accuracys[0])
+        airway_acc_sum = tf.summary.scalar("airway_accuracy",accuracys[1])
+        background_acc_sum = tf.summary.scalar("background_acc",accuracys[2])
+        total_acc_sum = tf.summary.scalar("total_accuracy",total_acc)
+        train_merge_op = tf.summary.merge([artery_acc_sum,airway_acc_sum,background_acc_sum])
+        test_merge_op = tf.summary.merge([total_acc_sum])
+
+        # data
+        data = tools.Data(configure, epoch_walked/re_example_epoch)
+        with tf.Session() as sess:
+            sum_writer_train = tf.summary.FileWriter(self.train_sum_dir, sess.graph)
+            sum_write_test = tf.summary.FileWriter(self.test_sum_dir, sess.grap)
+
+
+
+        print "end training"
 
 
 
