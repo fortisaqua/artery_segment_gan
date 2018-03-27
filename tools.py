@@ -246,10 +246,11 @@ class Ops:
 
     @staticmethod
     def xxlu(x,name='relu'):
-        if name =='relu':
-            return  Ops.relu(x)
-        else:
-            return  Ops.lrelu(x,leak=0.2)
+        with tf.variable_scope(name):
+            if name =='relu':
+                return  Ops.relu(x)
+            else:
+                return  Ops.lrelu(x,leak=0.2)
 
     @staticmethod
     def variable_sum(var, name):
@@ -278,14 +279,15 @@ class Ops:
 
     @staticmethod
     def fc(x, out_d, name):
-        xavier_init = tf.contrib.layers.xavier_initializer()
-        zero_init = tf.zeros_initializer()
-        in_d = x.get_shape()[1]
-        w = tf.get_variable(name + '_w', [in_d, out_d], initializer=xavier_init)
-        b = tf.get_variable(name + '_b', [out_d], initializer=zero_init)
-        y = tf.nn.bias_add(tf.matmul(x, w), b)
-        Ops.variable_sum(w, name)
-        return y
+        with tf.variable_scope(name):
+            xavier_init = tf.contrib.layers.xavier_initializer()
+            zero_init = tf.zeros_initializer()
+            in_d = x.get_shape()[1]
+            w = tf.get_variable(name + '_w', [in_d, out_d], initializer=xavier_init)
+            b = tf.get_variable(name + '_b', [out_d], initializer=zero_init)
+            y = tf.nn.bias_add(tf.matmul(x, w), b)
+            Ops.variable_sum(w, name)
+            return y
 
     @staticmethod
     def maxpool3d(x,k,s,pad='SAME'):
@@ -296,30 +298,32 @@ class Ops:
 
     @staticmethod
     def conv3d(x, k, out_c, str, name,pad='SAME'):
-        xavier_init = tf.contrib.layers.xavier_initializer()
-        zero_init = tf.zeros_initializer()
-        in_c = x.get_shape()[4]
-        w = tf.get_variable(name + '_w', [k, k, k, in_c, out_c], initializer=xavier_init)
-        b = tf.get_variable(name + '_b', [out_c], initializer=zero_init)
+        with tf.variable_scope(name):
+            xavier_init = tf.contrib.layers.xavier_initializer()
+            zero_init = tf.zeros_initializer()
+            in_c = x.get_shape()[4]
+            w = tf.get_variable(name + '_w', [k, k, k, in_c, out_c], initializer=xavier_init)
+            b = tf.get_variable(name + '_b', [out_c], initializer=zero_init)
 
-        stride = [1, str, str, str, 1]
-        y = tf.nn.bias_add(tf.nn.conv3d(x, w, stride, pad), b)
-        Ops.variable_sum(w, name)
-        return y
+            stride = [1, str, str, str, 1]
+            y = tf.nn.bias_add(tf.nn.conv3d(x, w, stride, pad), b)
+            Ops.variable_sum(w, name)
+            return y
 
     @staticmethod
     def deconv3d(x, k, out_c, str, name,pad='SAME'):
-        xavier_init = tf.contrib.layers.xavier_initializer()
-        zero_init = tf.zeros_initializer()
-        bat, in_d1, in_d2, in_d3, in_c = [int(d) for d in x.get_shape()]
-        w = tf.get_variable(name + '_w', [k, k, k, out_c, in_c], initializer=xavier_init)
-        b = tf.get_variable(name + '_b', [out_c], initializer=zero_init)
-        out_shape = [bat, in_d1 * str, in_d2 * str, in_d3 * str, out_c]
-        stride = [1, str, str, str, 1]
-        y = tf.nn.conv3d_transpose(x, w, output_shape=out_shape, strides=stride, padding=pad)
-        y = tf.nn.bias_add(y, b)
-        Ops.variable_sum(w, name)
-        return y
+        with tf.variable_scope(name):
+            xavier_init = tf.contrib.layers.xavier_initializer()
+            zero_init = tf.zeros_initializer()
+            bat, in_d1, in_d2, in_d3, in_c = [int(d) for d in x.get_shape()]
+            w = tf.get_variable(name + '_w', [k, k, k, out_c, in_c], initializer=xavier_init)
+            b = tf.get_variable(name + '_b', [out_c], initializer=zero_init)
+            out_shape = [bat, in_d1 * str, in_d2 * str, in_d3 * str, out_c]
+            stride = [1, str, str, str, 1]
+            y = tf.nn.conv3d_transpose(x, w, output_shape=out_shape, strides=stride, padding=pad)
+            y = tf.nn.bias_add(y, b)
+            Ops.variable_sum(w, name)
+            return y
 
     @staticmethod
     def batch_norm(x, name_scope, training, epsilon=1e-3, decay=0.999):
