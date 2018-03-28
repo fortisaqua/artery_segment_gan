@@ -165,7 +165,8 @@ class Network:
         with tf.variable_scope("input"):
             X = tf.reshape(X, [batch_size, input_shape[0], input_shape[1], input_shape[2], 1])
             Y = tf.reshape(Y, [batch_size, output_shape[0], output_shape[1], output_shape[2], 1])
-            layer = tf.concat([X, Y], axis=4)
+            # layer = tf.concat([X, Y], axis=4)
+            layer = X*Y
             c_d = [1, 2, 64, 128, 256, 512]
             s_d = [0, 2, 2, 2, 2, 2]
             layers_d = []
