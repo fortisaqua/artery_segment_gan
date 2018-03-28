@@ -38,6 +38,11 @@ class Test_data():
         self.blocks=dict()
         self.results=dict()
 
+    def output_origin(self):
+        if not os.path.exists("./temp_output"):
+            os.mkdir("./temp_output")
+        ST.WriteImage(ST.GetImageFromArray(np.transpose(self.image_array,[2,1,0])),"./temp_output/original.vtk")
+
     # do the simple threshold function
     def threshold(self,low,high):
         mask_array=np.float32(np.float32(self.image_array<=high)*np.float32(self.image_array>=low))
