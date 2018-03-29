@@ -39,7 +39,7 @@ config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 8
-decay_step = 2 * 15 / (config['train_amount'] - 1)
+decay_step = 2 * 16 / (config['train_amount'] - 1)
 ################################################################
 
 class Network:
