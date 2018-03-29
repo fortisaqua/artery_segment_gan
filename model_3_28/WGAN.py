@@ -20,8 +20,8 @@ power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 87
-step_walked = 70270
+epoch_walked = 0
+step_walked = 0
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -165,8 +165,7 @@ class Network:
         with tf.variable_scope("input"):
             X = tf.reshape(X, [batch_size, input_shape[0], input_shape[1], input_shape[2], 1])
             Y = tf.reshape(Y, [batch_size, output_shape[0], output_shape[1], output_shape[2], 1])
-            # layer = tf.concat([X, Y], axis=4)
-            layer = X*Y
+            layer = tf.concat([X, Y], axis=4)
             c_d = [1, 2, 64, 128, 256, 512]
             s_d = [0, 2, 2, 2, 2, 2]
             layers_d = []

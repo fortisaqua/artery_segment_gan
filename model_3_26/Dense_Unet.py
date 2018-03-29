@@ -14,15 +14,15 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 2
-ori_lr = 0.0002
+batch_size = 1
+ori_lr = 0.0003
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 87
-step_walked = 70270
-upper_threshold = 0.6
+epoch_walked = 41
+step_walked = 62880
+upper_threshold = 0.65
 MAX_EPOCH = 2000
 re_example_epoch = 2
 total_test_epoch = 4
@@ -30,7 +30,7 @@ show_step = 10
 block_test_step = 20
 model_save_step = 50
 output_epoch = total_test_epoch * 10
-test_extra_threshold = 0.2
+test_extra_threshold = 0
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
@@ -95,7 +95,7 @@ class Network:
             down_sample_input = tools.Ops.conv3d(X, k=3, out_c=size, str=1, name='down_sample_input')
             bn_input = tools.Ops.batch_norm(down_sample_input, "bn_input", training=training)
             relu_input = tools.Ops.xxlu(bn_input, name="relu_input")
-            down_sample = tools.Ops.conv3d(relu_input, k=str, out_c=size, str=str, name='down_sample')
+            down_sample = tools.Ops.conv3d(relu_input, k=2, out_c=size, str=str, name='down_sample')
         return down_sample
 
     def Up_Sample(self,X,name,str,training,size):
@@ -117,16 +117,15 @@ class Network:
 
     def Predict(self,X,name,training,threshold):
         with tf.variable_scope(name):
-            predict_conv_1 = tools.Ops.conv3d(X, k=2, out_c=64, str=1, name="conv_predict_1")
+            predict_conv_1 = tools.Ops.conv3d(X, k=3, out_c=32, str=1, name="conv_predict_1")
             bn_1 = tools.Ops.batch_norm(predict_conv_1,"bn_predict_1",training)
             relu_1 = tools.Ops.xxlu(bn_1, name="relu_predict_1")
-            predict_map = tools.Ops.conv3d(relu_1, k=1, out_c=1, str=1, name="predict_map")
+            predict_conv_2 = tools.Ops.conv3d(relu_1, k=1, out_c=1, str=1, name="conv_predict_2")
             # bn_2 = tools.Ops.batch_norm(predict_conv_2,"bn_predict_2",training)
-            # relu_2 = tools.Ops.xxlu(predict_conv_2, name="relu_predict_2")
-            vox_no_sig = predict_map
-            vox_sig = tf.sigmoid(predict_map)
+            relu_2 = tools.Ops.xxlu(predict_conv_2, name="relu_predict_2")
+            vox_sig = tf.sigmoid(predict_conv_2)
             vox_sig_modified = tf.maximum(vox_sig - threshold, 0.01)
-        return vox_sig,vox_sig_modified,vox_no_sig
+        return vox_sig,vox_sig_modified,relu_2
 
     def Concat(self,inputs,axis,size,name):
         with tf.variable_scope(name):
@@ -135,7 +134,7 @@ class Network:
         return concat_conv
 
     def ae_u(self,X,training,batch_size,threshold):
-        original=16
+        original=64
         growth=12
         dense_layer_num=8
         X_input = self.Input(X,"input",batch_size,original,training)
@@ -145,9 +144,7 @@ class Network:
 
         dense_2 = self.Dense_Block(down_2,"dense_block_2",dense_layer_num,growth,training)
 
-        up_input_1 = self.Concat([down_2,dense_2,
-                                  self.Down_Sample(dense_1,"cross_1",2,training,original),
-                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=original*3,name="concat_up_1")
+        up_input_1 = self.Concat([down_2,dense_2],axis=4,size=original*2,name="concat_up_1")
         up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,original*2)
 
         dense_input_3 = self.Concat([up_1,dense_1],axis=4,size=original*2,name="concat_dense_3")
@@ -163,24 +160,23 @@ class Network:
 
     def dis(self, X, Y,training):
         with tf.variable_scope("input"):
-            X = tf.reshape(X, [batch_size, input_shape[0], input_shape[1], input_shape[2], 1])
-            Y = tf.reshape(Y, [batch_size, output_shape[0], output_shape[1], output_shape[2], 1])
-            # layer = tf.concat([X, Y], axis=4)
-            layer = X*Y
-            c_d = [1, 2, 64, 128, 256, 512]
-            s_d = [0, 2, 2, 2, 2, 2]
-            layers_d = []
+            X = tf.reshape(X,[batch_size,input_shape[0],input_shape[1],input_shape[2],1])
+            Y = tf.reshape(Y,[batch_size,output_shape[0],output_shape[1],output_shape[2],1])
+            layer = tf.concat([X,Y],axis=4)
+            c_d = [1,2,64,128,256,512]
+            s_d = [0,2,2,2,2,2]
+            layers_d =[]
             layers_d.append(layer)
         with tf.variable_scope("down_sample"):
             for i in range(1,6,1):
-                layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_1'+str(i))
-                if i!=5:
+                with tf.variable_scope("norm_block_"+str(i)):
+                    layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_'+str(i))
                     layer = tools.Ops.xxlu(layer, name='lrelu')
                     # batch normal layer
                     layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
-                layers_d.append(layer)
+                    layers_d.append(layer)
         with tf.variable_scope("flating"):
-            y = tf.reshape(layers_d[-1], [batch_size, -1])
+            y = tf.reshape(layers_d[-1],[batch_size,-1])
         return tf.nn.sigmoid(y)
 
     def train(self,configure):
@@ -199,6 +195,14 @@ class Network:
         with tf.variable_scope('discriminator', reuse=True):
             XY_fake_pair = self.dis(X, Y_pred, training)
 
+        # accuracy
+        block_acc = tf.placeholder(tf.float32)
+        total_acc = tf.placeholder(tf.float32)
+        train_sum = tf.summary.scalar("train_block_accuracy", block_acc)
+        test_sum = tf.summary.scalar("total_test_accuracy", total_acc)
+        train_merge_op = tf.summary.merge([train_sum])
+        test_merge_op = tf.summary.merge([test_sum])
+
         # loss function
         # generator loss
         Y_ = tf.reshape(Y, shape=[batch_size, -1])
@@ -207,7 +211,6 @@ class Network:
         g_loss = tf.reduce_mean(-tf.reduce_mean(w * Y_ * tf.log(Y_pred_modi_ + 1e-8), reduction_indices=[1]) -
                                 tf.reduce_mean((1 - w) * (1 - Y_) * tf.log(1 - Y_pred_modi_ + 1e-8),
                                                reduction_indices=[1]))
-        g_loss_sum = tf.summary.scalar("generator cross entropy",g_loss)
         # discriminator loss
         gan_d_loss = tf.reduce_mean(XY_fake_pair) - tf.reduce_mean(XY_real_pair)
         alpha = tf.random_uniform(shape=[batch_size, input_shape[0] * input_shape[1] * input_shape[2]], minval=0.0,
@@ -221,14 +224,12 @@ class Network:
         slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
         gradient_penalty = tf.reduce_mean((slopes - 1.0) ** 2)
         gan_d_loss += 10 * gradient_penalty
-        gan_d_loss_sum = tf.summary.scalar("total loss of discriminator",gan_d_loss)
 
         # generator loss with gan loss
         gan_g_loss = -tf.reduce_mean(XY_fake_pair)
         gan_g_w = 5
         ae_w = 100 - gan_g_w
         ae_gan_g_loss = ae_w * g_loss + gan_g_w * gan_g_loss
-        ae_g_loss_sum = tf.summary.scalar("total loss of generator",ae_gan_g_loss)
 
         # trainers
         ae_var = [var for var in tf.trainable_variables() if var.name.startswith('generator')]
@@ -237,14 +238,6 @@ class Network:
             ae_gan_g_loss, var_list=ae_var)
         dis_optim = tf.train.AdamOptimizer(learning_rate=lr, beta1=0.9, beta2=0.999, epsilon=1e-8).minimize(
             gan_d_loss, var_list=dis_var)
-
-        # accuracy
-        block_acc = tf.placeholder(tf.float32)
-        total_acc = tf.placeholder(tf.float32)
-        train_sum = tf.summary.scalar("train_block_accuracy", block_acc)
-        test_sum = tf.summary.scalar("total_test_accuracy", total_acc)
-        train_merge_op = tf.summary.merge([train_sum,ae_g_loss_sum,gan_d_loss_sum,g_loss_sum])
-        test_merge_op = tf.summary.merge([test_sum])
 
         saver = tf.train.Saver(max_to_keep=1)
         # config = tf.ConfigProto(allow_soft_placement=True)
@@ -350,7 +343,8 @@ class Network:
                         sum_write_test.add_summary(test_summary, global_step=epoch)
                         print "IOU accuracy: ", test_IOU
                         time_end = time.time()
-                        print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
+                        print '******************** time of full testing: ' + str(
+                            time_end - time_begin) + 's ********************'
                     data.shuffle_X_Y_pairs()
                     total_train_batch_num = data.total_train_batch_num
                     print "total_train_batch_num:", total_train_batch_num
@@ -361,7 +355,7 @@ class Network:
                         gan_d_loss_c, = sess.run([gan_d_loss],
                                                  feed_dict={X: X_train_batch, Y: Y_train_batch, training: False,
                                                             w: weight_for, threshold: upper_threshold})
-                        g_loss_c, gan_g_loss_c = sess.run([g_loss, ae_gan_g_loss],
+                        g_loss_c, gan_g_loss_c = sess.run([g_loss, gan_g_loss],
                                                           feed_dict={X: X_train_batch, Y: Y_train_batch,
                                                                      training: False, w: weight_for,
                                                                      threshold: upper_threshold})
@@ -382,7 +376,7 @@ class Network:
                             try:
                                 X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
                                 g_loss_t, gan_g_loss_t, gan_d_loss_t, Y_test_pred, Y_test_modi, Y_test_pred_nosig = \
-                                    sess.run([g_loss, ae_gan_g_loss, gan_d_loss, Y_pred, Y_pred_modi, Y_pred_nosig],
+                                    sess.run([g_loss, gan_g_loss, gan_d_loss, Y_pred, Y_pred_modi, Y_pred_nosig],
                                              feed_dict={X: X_test_batch,
                                                         threshold: upper_threshold + test_extra_threshold,
                                                         Y: Y_test_batch, training: False, w: weight_for})
@@ -402,11 +396,7 @@ class Network:
                                 print "epoch:", epoch, " global step: ", global_step, "\nIOU accuracy: ", accuracy, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
                                 print "weight of foreground : ", weight_for
                                 print "upper threshold of testing",(upper_threshold + test_extra_threshold)
-                                train_summary = sess.run(train_merge_op, feed_dict={block_acc: accuracy,
-                                                                                    X: X_test_batch,
-                                                                                    threshold: upper_threshold + test_extra_threshold,
-                                                                                    Y: Y_test_batch, training: False,
-                                                                                    w: weight_for})
+                                train_summary = sess.run(train_merge_op, feed_dict={block_acc: accuracy})
                                 sum_writer_train.add_summary(train_summary, global_step=global_step)
                             except Exception, e:
                                 print e
