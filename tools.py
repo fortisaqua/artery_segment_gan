@@ -236,6 +236,125 @@ class Data:
             for item in fail_list:
                 print item
 
+class Data_multi():
+    def __init__(self,config,epoch):
+        self.config = config
+        self.train_batch_index = 0
+        self.test_seq_index = 0
+        self.epoch = epoch
+        self.batch_size = config['batch_size']
+        self.test_amount = config['test_amount']
+        self.train_amount = config['train_amount']
+        self.data_size = config['data_size']
+
+        self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config['meta_path'],self.epoch)
+
+        print "train_numbers:",len(self.train_numbers),"---",self.train_numbers
+        print "test_numbers:",len(self.test_numbers),"---",self.test_numbers
+        self.total_train_batch_num,self.train_locs = self.load_X_Y_train_batch_num()
+        self.total_test_seq_batch,self.test_locs = self.load_X_Y_test_batch_num()
+        print "total_train_batch_num: ", self.total_train_batch_num
+        print "total_test_seq_batch: ",self.total_test_seq_batch
+
+    def load_X_Y_numbers_special(self,meta_path,epoch):
+        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_multi_data(meta_path,self.data_size,epoch,self.train_amount)
+        numbers=[]
+        train_numbers=[]
+        test_numbers=[]
+        for number in self.mask.keys():
+            if len(self.mask[number])>0:
+                numbers.append(number)
+        for i in range(self.test_amount):
+            test_number_temp = numbers[random.randint(0,len(numbers)-1)]
+            while test_number_temp in zero_numbers:
+                test_number_temp = numbers[random.randint(0, len(numbers) - 1)]
+            test_numbers.append(test_number_temp)
+        for number in numbers:
+            if not number in test_numbers:
+                train_numbers.append(number)
+        return train_numbers,test_numbers
+
+    def load_X_Y_train_batch_num(self):
+        total_num=0
+        locs=[]
+        for number in self.train_numbers:
+            for i in range(len(self.mask[number])):
+                total_num=total_num+1
+                locs.append([number,i])
+        return int(total_num/self.batch_size),locs
+
+    def load_X_Y_test_batch_num(self):
+        total_num = 0
+        locs=[]
+        for number in self.test_numbers:
+            for i in range(len(self.mask[number])):
+                total_num = total_num + 1
+                locs.append([number,i])
+        return int(total_num / self.batch_size),locs
+
+    def shuffle_X_Y_pairs(self):
+        train_locs_new=[]
+        test_locs_new=[]
+        trains=self.train_locs
+        tests=self.test_locs
+        self.train_batch_index = 0
+        train_index = range(len(trains))
+        test_index = range(len(tests))
+        shuffle(train_index)
+        shuffle(test_index)
+        for i in train_index:
+            train_locs_new.append(trains[i])
+        for j in test_index:
+            test_locs_new.append(tests[j])
+        self.train_locs=train_locs_new
+        self.test_locs=test_locs_new
+
+    def load_X_Y_voxel_train_next_batch(self):
+        temp_locs=self.train_locs[self.batch_size*self.train_batch_index:self.batch_size*(self.train_batch_index+1)]
+        X_data_voxels=[]
+        Y_data_voxels=[]
+        for pair in temp_locs:
+            X_data_voxels.append(self.dicom_origin[pair[0]][pair[1]])
+            Y_data_voxels.append(self.mask[pair[0]][pair[1]])
+        self.train_batch_index += 1
+        X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
+        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
+        for i in range(len(X_data_voxels)):
+            temp_X = X_data_voxels[i][:,:,:]
+            temp_y = Y_data_voxels[i][:,:,:]
+            shape_X = np.shape(temp_X)
+            shape_Y = np.shape(temp_y)
+            X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_data_voxels[i][:,:,:]
+            Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] = Y_data_voxels[i][:,:,:]
+
+        return X_data,Y_data
+
+    def load_X_Y_voxel_test_next_batch(self,fix_sample=False):
+        if fix_sample:
+            random.seed(45)
+        idx = random.sample(range(len(self.test_locs)), self.batch_size)
+        X_test_voxels_batch=[]
+        Y_test_voxels_batch=[]
+        for i in idx:
+            temp_pair=self.test_locs[i]
+            X_test_voxels_batch.append(self.dicom_origin[temp_pair[0]][temp_pair[1]])
+            Y_test_voxels_batch.append(self.mask[temp_pair[0]][temp_pair[1]])
+        X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
+        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
+        '''
+        X_test_voxels_batch=np.asarray(X_test_voxels_batch)
+        Y_test_voxels_batch=np.asarray(Y_test_voxels_batch)
+        '''
+        for i in range(len(X_test_voxels_batch)):
+            temp_X = X_test_voxels_batch[i][:,:,:]
+            temp_y = Y_test_voxels_batch[i][:,:,:]
+            shape_X = np.shape(temp_X)
+            shape_Y = np.shape(temp_y)
+            X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_test_voxels_batch[i][:,:,:]
+            Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] = Y_test_voxels_batch[i][:,:,:]
+        return X_data,Y_data
+
+
 class Ops:
 
     @staticmethod

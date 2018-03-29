@@ -176,6 +176,8 @@ class Network:
         return self.Pixel_Classifier(predict_input,"segment",training,class_num)
 
     def train(self,configure):
+        #  data
+        data = tools.Data_multi(configure, epoch_walked/re_example_epoch)
         # network
         X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
         Y = tf.placeholder(shape=[batch_size, output_shape[0], output_shape[1], output_shape[2],class_num], dtype=tf.float32)
@@ -210,8 +212,7 @@ class Network:
         train_merge_op = tf.summary.merge([artery_acc_sum,airway_acc_sum,background_acc_sum])
         test_merge_op = tf.summary.merge([total_acc_sum])
 
-        # data
-        data = tools.Data(configure, epoch_walked/re_example_epoch)
+
         with tf.Session() as sess:
             sum_writer_train = tf.summary.FileWriter(self.train_sum_dir, sess.graph)
             sum_write_test = tf.summary.FileWriter(self.test_sum_dir, sess.grap)
