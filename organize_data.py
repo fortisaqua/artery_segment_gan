@@ -157,6 +157,30 @@ def get_organized_data(meta_path, single_size,epoch,train_amount):
                         # mask_datas[number].append(clipped_mask)
     return dicom_datas,mask_datas,accept_zeros
 
+# method of getting many masks for multi-class classifying job on pixel level
+def get_multi_data(meta_path, single_size,epoch,train_amount):
+    rand = random.Random()
+    dicom_datas = dict()
+    mask_datas = dict()
+    pickle_reader = open(meta_path)
+    meta_data = pickle.load(pickle_reader)
+    # accept_zeros = rand.sample(meta_data.keys(),8)
+    total_keys = meta_data.keys()
+    begin = (epoch*(train_amount-1))%len(total_keys)+1
+    end = (epoch*(train_amount-1)+train_amount)%len(total_keys)+1
+    if begin<end:
+        to_be_trained = total_keys[begin:end]
+    else:
+        to_be_trained = total_keys[begin:]+total_keys[:end]
+    accept_zeros = rand.sample(to_be_trained, 1)
+    # for i in range(8):
+    #     accept_zeros = to_be_trained[accept_zeros[i]]
+    for number,data_dir in meta_data.items():
+        if number in to_be_trained:
+            print number
+
+    return dicom_datas,mask_datas,accept_zeros
+
 # def test():
 #     meta_path = '/opt/analyse_airway/data_meta.pkl'
 #     single_size = [64,64,64]
