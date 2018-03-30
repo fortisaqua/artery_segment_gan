@@ -38,7 +38,7 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 1
-config['train_amount'] = 3
+config['train_amount'] = 4
 decay_step = 2 * 16 / (config['train_amount'] - 1)
 ################################################################
 
