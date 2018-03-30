@@ -193,15 +193,17 @@ def get_multi_data(meta_path, single_size,epoch,train_amount,max_epoch):
                     for k in range(0,data_shape[2],single_size[2]/2):
                         if i+single_size[0]/2<data_shape[0] and j+single_size[1]/2<data_shape[1] and k+single_size[2]/2<data_shape[2]:
                             clipped_mask = dict()
-                            flag = False
+                            flag = True
                             for name in mask_arrays.keys():
                                 if not "lung" in name:
                                     clipped_mask[name] = mask_arrays[name][i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
-                                    if np.sum(np.float32(clipped_mask)) / (single_size[0] * single_size[1] * single_size[2]) >= (0.05 * (1 - epoch * 1.0 / max_epoch))
+                                    if np.sum(np.float32(clipped_mask[name])) / (single_size[0] * single_size[1] * single_size[2]) < (0.05 * (1 - epoch * 1.0 / max_epoch))\
+                                            and not number in accept_zeros:
+                                        flag = False
                             if flag:
                                 clipped_dicom = original_array[i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
                                 dicom_datas[number].append(clipped_dicom)
-                                mask_datas[number].append(clipped_mask)
+                                mask_arrays[number].append(clipped_mask)
 
     return dicom_datas,mask_datas,accept_zeros
 
