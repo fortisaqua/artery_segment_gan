@@ -36,10 +36,11 @@ edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
-config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
+config['meta_path'] = '/opt/artery_extraction/data_meta_multi_class.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 8
+config['max_epoch'] = MAX_EPOCH
 decay_step = 2 * 16 / (config['train_amount'] - 1)
 ################################################################
 

@@ -246,6 +246,7 @@ class Data_multi():
         self.test_amount = config['test_amount']
         self.train_amount = config['train_amount']
         self.data_size = config['data_size']
+        self.max_epoch = config['max_epoch']
 
         self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config['meta_path'],self.epoch)
 
@@ -257,7 +258,7 @@ class Data_multi():
         print "total_test_seq_batch: ",self.total_test_seq_batch
 
     def load_X_Y_numbers_special(self,meta_path,epoch):
-        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_multi_data(meta_path,self.data_size,epoch,self.train_amount)
+        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_multi_data(meta_path,self.data_size,epoch,self.train_amount,self.max_epoch)
         numbers=[]
         train_numbers=[]
         test_numbers=[]

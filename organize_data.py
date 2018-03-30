@@ -158,7 +158,7 @@ def get_organized_data(meta_path, single_size,epoch,train_amount):
     return dicom_datas,mask_datas,accept_zeros
 
 # method of getting many masks for multi-class classifying job on pixel level
-def get_multi_data(meta_path, single_size,epoch,train_amount):
+def get_multi_data(meta_path, single_size,epoch,train_amount,max_epoch):
     rand = random.Random()
     dicom_datas = dict()
     mask_datas = dict()
@@ -166,18 +166,42 @@ def get_multi_data(meta_path, single_size,epoch,train_amount):
     meta_data = pickle.load(pickle_reader)
     # accept_zeros = rand.sample(meta_data.keys(),8)
     total_keys = meta_data.keys()
-    begin = (epoch*(train_amount-1))%len(total_keys)+1
-    end = (epoch*(train_amount-1)+train_amount)%len(total_keys)+1
+    begin = (epoch*(train_amount-1))%len(total_keys)
+    end = (epoch*(train_amount-1)+train_amount)%len(total_keys)
     if begin<end:
         to_be_trained = total_keys[begin:end]
     else:
         to_be_trained = total_keys[begin:]+total_keys[:end]
-    accept_zeros = rand.sample(to_be_trained, 1)
+    accept_zeros = rand.sample(to_be_trained, 2)
     # for i in range(8):
     #     accept_zeros = to_be_trained[accept_zeros[i]]
     for number,data_dir in meta_data.items():
         if number in to_be_trained:
             print number
+            dataset = sio.loadmat(data_dir)
+            dicom_datas[number] = list()
+            mask_datas[number] = list()
+            original_array = dataset['original']
+            mask_arrays = dict()
+            for name in dataset.keys():
+                if not name == "original":
+                    mask_arrays[name] = dataset[name]
+            data_shape = np.shape(original_array)
+
+            for i in range(0,data_shape[0],single_size[0]/2):
+                for j in range(0,data_shape[1],single_size[1]/2):
+                    for k in range(0,data_shape[2],single_size[2]/2):
+                        if i+single_size[0]/2<data_shape[0] and j+single_size[1]/2<data_shape[1] and k+single_size[2]/2<data_shape[2]:
+                            clipped_mask = dict()
+                            flag = False
+                            for name in mask_arrays.keys():
+                                if not "lung" in name:
+                                    clipped_mask[name] = mask_arrays[name][i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
+                                    if np.sum(np.float32(clipped_mask)) / (single_size[0] * single_size[1] * single_size[2]) >= (0.05 * (1 - epoch * 1.0 / max_epoch))
+                            if flag:
+                                clipped_dicom = original_array[i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
+                                dicom_datas[number].append(clipped_dicom)
+                                mask_datas[number].append(clipped_mask)
 
     return dicom_datas,mask_datas,accept_zeros
 
