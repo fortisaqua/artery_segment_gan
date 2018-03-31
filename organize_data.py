@@ -144,11 +144,11 @@ def get_organized_data(meta_path, single_size,epoch,train_amount):
                     for k in range(0,data_shape[2],single_size[2]/2):
                         if i+single_size[0]/2<data_shape[0] and j+single_size[1]/2<data_shape[1] and k+single_size[2]/2<data_shape[2]:
                             clipped_mask = mask_array[i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
-                            if np.sum(np.float32(clipped_mask))/(single_size[0]*single_size[1]*single_size[2])<=(0.05*(1-epoch*1.0/1500)) and number in accept_zeros:
+                            if np.sum(np.float32(clipped_mask))/(single_size[0]*single_size[1]*single_size[2])<=(0.05*(1-epoch*1.0/2000)) and number in accept_zeros:
                                 clipped_dicom = original_array[i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
                                 dicom_datas[number].append(clipped_dicom)
                                 mask_datas[number].append(clipped_mask)
-                            elif np.sum(np.float32(clipped_mask))/(single_size[0]*single_size[1]*single_size[2])>(0.05*(1-epoch*1.0/1500)):
+                            elif np.sum(np.float32(clipped_mask))/(single_size[0]*single_size[1]*single_size[2])>(0.05*(1-epoch*1.0/2000)):
                                 clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
                                 dicom_datas[number].append(clipped_dicom)
                                 mask_datas[number].append(clipped_mask)
