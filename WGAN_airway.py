@@ -14,14 +14,14 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-batch_size = 2
-ori_lr = 0.0005
+batch_size =3
+ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 0
-step_walked = 0
+epoch_walked = 13
+step_walked = 4760
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -38,16 +38,16 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 8
+config['train_amount'] = 10
 decay_step = 2 * 39 / (config['train_amount'] - 1)
 ################################################################
 
 class Network:
     def __init__(self):
-        self.train_models_dir = './D_train_models/'
-        self.train_sum_dir = './D_sum/train/'
-        self.test_results_dir = './D_test_results/'
-        self.test_sum_dir = './D_sum/test/'
+        self.train_models_dir = './airway_train_models/'
+        self.train_sum_dir = './airway_sum/train/'
+        self.test_results_dir = './airway_test_results/'
+        self.test_sum_dir = './airway_sum/test/'
 
         if os.path.exists(self.test_results_dir):
             shutil.rmtree(self.test_results_dir)
@@ -136,7 +136,7 @@ class Network:
 
     def ae_u(self,X,training,batch_size,threshold):
         original=16
-        growth=12
+        growth=6
         dense_layer_num=8
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
@@ -277,7 +277,7 @@ class Network:
                         print '********************** FULL TESTING ********************************'
                         time_begin = time.time()
                         origin_dir = read_dicoms(test_dir + "original1")
-                        mask_dir = test_dir + "artery"
+                        mask_dir = test_dir + "airway"
                         test_batch_size = batch_size
                         # test_data = tools.Test_data(dicom_dir,input_shape)
                         test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
