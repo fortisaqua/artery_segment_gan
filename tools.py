@@ -67,7 +67,13 @@ class Test_data():
         ranger = self.blocks[block_num].get_range()
         partial_result = np.float32((result_array-0.01)>0)
         this_result = Data_block(ranger,partial_result)
-        self.results[block_num]=this_result
+        self.results[block_num] = this_result
+
+    def upload_result_multiclass(self,block_num,result_array,type_num):
+        ranger = self.blocks[block_num].get_range()
+        partial_result = np.float32(result_array[:,:,:] == type_num)
+        this_result = Data_block(ranger,partial_result)
+        self.results[block_num] = this_result
 
     def get_result(self):
         ret=np.zeros(self.image_shape,np.float32)
@@ -86,6 +92,26 @@ class Test_data():
             except Exception,e:
                 print np.shape(self.results[number].load_data()[:,:,:,0]),self.results[number].get_range()
         return np.float32(ret>=6)
+
+    def get_result_(self):
+        ret=np.zeros(self.image_shape,np.float32)
+        for number in self.results.keys():
+            try:
+                ranger=self.results[number].get_range()
+                xmin=ranger[0]
+                xmax=ranger[1]
+                ymin=ranger[2]
+                ymax=ranger[3]
+                zmin=ranger[4]
+                zmax=ranger[5]
+                temp_result = self.results[number].load_data()[:,:,:]
+                # temp_shape = np.shape(temp_result)
+                temp1 = ret[xmin:xmax,ymin:ymax,zmin:zmax]
+                temp2 = temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
+                ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
+            except Exception,e:
+                print np.shape(self.results[number].load_data()[:,:,:]),self.results[number].get_range()
+        return np.float32(ret>=4)
 
 class Data:
     def __init__(self,config,epoch):

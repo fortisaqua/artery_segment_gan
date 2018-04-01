@@ -14,18 +14,18 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-batch_size = 4
+batch_size = 2
 ori_lr = 0.0002
 power = 0.9
 # GPU0 = '1'
 # [artery , airway , background]
 mask_names = ["artery","airway","background"]
 weights = [0.7,0.2,0.1]
-input_shape = [64,64,128]
-output_shape = [64,64,128]
+input_shape = [128,128,64]
+output_shape = [128,128,64]
 epoch_walked = 0
 step_walked = 0
-MAX_EPOCH = 1
+MAX_EPOCH = 2000
 class_num = 3
 re_example_epoch = 2
 total_test_epoch = 4
@@ -34,6 +34,7 @@ block_test_step = 20
 model_save_step = 50
 output_epoch = total_test_epoch * 10
 edge_thickness = 15
+mask_type = 0
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
@@ -188,7 +189,6 @@ class Network:
     def train(self,configure):
         #  data
         data = tools.Data_multi(configure, epoch_walked/re_example_epoch)
-        X_data, Y_data = data.load_X_Y_voxel_train_next_batch()
         # network
         self.X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
         self.Y = tf.placeholder(shape=[batch_size, output_shape[0], output_shape[1], output_shape[2],class_num], dtype=tf.float32)
@@ -200,7 +200,7 @@ class Network:
         training = self.training
         with tf.variable_scope('segment'):
             # [relu , softmax, argmax]
-            self.pred_unsoft, self.softmax_pred, self.argmax_label = self.Segmentor(X, training, batch_size)
+            self.pred_unsoft, self.softmax_pred, self.argmax_label = self.Segmentor(self.X, self.training, batch_size)
             pred_unsoft = self.pred_unsoft
             softmax_pred = self.softmax_pred
             argmax_label = self.argmax_label
@@ -224,11 +224,11 @@ class Network:
         for i in range(class_num):
             accuracys.append(tf.reduce_mean(tf.cast(tf.equal(pred_masks[i],Y[:,:,:,:,i]),tf.float32)))
         # [artery , airway , background]
-        total_acc = tf.placeholder(tf.float32)
+        self.total_acc = tf.placeholder(tf.float32)
         artery_acc_sum = tf.summary.scalar("artery_accuracy",accuracys[0])
         airway_acc_sum = tf.summary.scalar("airway_accuracy",accuracys[1])
         background_acc_sum = tf.summary.scalar("background_acc",accuracys[2])
-        total_acc_sum = tf.summary.scalar("total_accuracy",total_acc)
+        total_acc_sum = tf.summary.scalar("total_accuracy",self.total_acc)
         normal_loss_sum = tf.summary.scalar("normal_loss",tf.reduce_mean(pixel_loss))
         enhanced_loss_sum = tf.summary.scalar("enhanced_loss",mean_enhanced_loss)
         train_merge_op = tf.summary.merge([artery_acc_sum,airway_acc_sum,background_acc_sum,normal_loss_sum,enhanced_loss_sum])
@@ -244,7 +244,7 @@ class Network:
 
             # summary writers
             sum_writer_train = tf.summary.FileWriter(self.train_sum_dir, sess.graph)
-            sum_write_test = tf.summary.FileWriter(self.test_sum_dir, sess.graph)
+            self.sum_write_test = tf.summary.FileWriter(self.test_sum_dir, sess.graph)
 
             # load model data if pre-trained
             sess.run(tf.group(tf.global_variables_initializer(),
@@ -266,7 +266,7 @@ class Network:
                 test_amount = len(data.test_numbers)
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     if epoch % total_test_epoch == 0 and epoch > 0:
-                        print "full testing"
+                        self.full_testing(sess,epoch)
                     data.shuffle_X_Y_pairs()
                     total_train_batch_num = data.total_train_batch_num
                     for i in range(total_train_batch_num):
@@ -298,7 +298,7 @@ class Network:
         print "end training"
 
     # need to be modified
-    def full_testing(self,sess,):
+    def full_testing(self,sess,epoch):
         print '********************** FULL TESTING ********************************'
         time_begin = time.time()
         origin_data = read_dicoms(test_dir + "original1")
@@ -311,9 +311,61 @@ class Network:
         array_mask = np.transpose(array_mask, (2, 1, 0))
         print "mask shape: ", np.shape(array_mask)
         block_numbers = test_data.blocks.keys()
-
-    #   ToDo  load data and calculate data blocks from test data class
-
+        for i in range(0, len(block_numbers), test_batch_size):
+            batch_numbers = []
+            if i + test_batch_size < len(block_numbers):
+                temp_input = np.zeros(
+                    [test_batch_size, input_shape[0], input_shape[1], input_shape[2]])
+                for j in range(test_batch_size):
+                    temp_num = block_numbers[i + j]
+                    temp_block = test_data.blocks[temp_num]
+                    batch_numbers.append(temp_num)
+                    block_array = temp_block.load_data()
+                    block_shape = np.shape(block_array)
+                    temp_input[j, 0:block_shape[0], 0:block_shape[1],
+                    0:block_shape[2]] += block_array
+                pred_unsoft, softmax_pred, argmax_label = \
+                sess.run([self.pred_unsoft, self.softmax_pred, self.argmax_label],
+                    feed_dict={self.X: temp_input,
+                               self.training: False})
+                for j in range(test_batch_size):
+                    test_data.upload_result_multiclass(batch_numbers[j], argmax_label[j, :, :, :],mask_type)
+            else:
+                temp_batch_size = len(block_numbers) - i
+                temp_input = np.zeros(
+                    [temp_batch_size, input_shape[0], input_shape[1], input_shape[2]])
+                for j in range(temp_batch_size):
+                    temp_num = block_numbers[i + j]
+                    temp_block = test_data.blocks[temp_num]
+                    batch_numbers.append(temp_num)
+                    block_array = temp_block.load_data()
+                    block_shape = np.shape(block_array)
+                    temp_input[j, 0:block_shape[0], 0:block_shape[1],
+                    0:block_shape[2]] += block_array
+                X_temp = tf.placeholder(
+                    shape=[temp_batch_size, input_shape[0], input_shape[1], input_shape[2]],
+                    dtype=tf.float32)
+                with tf.variable_scope("segment",reuse=True):
+                    temp_unsoft, softmax_temp,argmax_temp = self.Segmentor(X_temp,self.training,batch_size)
+                    pred_unsoft_temp, softmax_pred_temp, argmax_label_temp = \
+                        sess.run([temp_unsoft, softmax_temp,argmax_temp],feed_dict={X_temp:temp_input,
+                                                                                    self.training:False})
+                    for j in range(temp_batch_size):
+                        test_data.upload_result_multiclass(batch_numbers[j],argmax_label_temp[j,:,:,:],mask_type)
+        test_result_array = test_data.get_result_()
+        print "result shape: ", np.shape(test_result_array)
+        to_be_transformed = self.post_process(test_result_array)
+        if epoch == 0:
+            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
+            mask_img.SetSpacing(test_data.space)
+            ST.WriteImage(mask_img, './test_result/test_mask.vtk')
+        test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
+                np.sum(to_be_transformed) + np.sum(array_mask))
+        test_summary = sess.run(self.test_merge_op, feed_dict={self.total_acc: test_IOU})
+        self.sum_write_test.add_summary(test_summary, global_step=epoch)
+        print "IOU accuracy: ", test_IOU
+        time_end = time.time()
+        print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
 
     def post_process(self,test_result_array):
         r_s = np.shape(test_result_array)  # result shape
