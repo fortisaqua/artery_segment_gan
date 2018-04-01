@@ -156,10 +156,10 @@ class Network:
         up_input_2 = self.Concat([dense_3,down_1],axis=4,size=original,name="concat_up_2")
         up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original)
 
-        predict_input = tf.concat([up_2,X_input,
+        predict_input = self.Concat([up_2,X_input,
                                    self.Up_Sample(up_input_1,"cross_3",4,training,original),
                                    self.Up_Sample(dense_input_3,"cross_4",2,training,original),
-                                   self.Up_Sample(dense_3,"cross_5",2,training,original),],axis=4,name="predict_input")
+                                   self.Up_Sample(dense_3,"cross_5",2,training,original)],axis=4,size=original*4,name="predict_input")
         vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input,"predict",training,threshold)
 
         return vox_sig, vox_sig_modified, vox_no_sig
