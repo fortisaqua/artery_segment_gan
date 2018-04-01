@@ -13,18 +13,19 @@ import gc
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 2
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+batch_size = 4
 ori_lr = 0.0002
 power = 0.9
 # GPU0 = '1'
 # [artery , airway , background]
-weights = [0.8,0.1,0.1]
+mask_names = ["artery","airway","background"]
+weights = [0.7,0.2,0.1]
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 epoch_walked = 0
 step_walked = 0
-MAX_EPOCH = 2000
+MAX_EPOCH = 1
 class_num = 3
 re_example_epoch = 2
 total_test_epoch = 4
@@ -38,10 +39,13 @@ config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_multi_class.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 2
-config['train_amount'] = 8
+config['test_amount'] = 1
+config['train_amount'] = 4
 config['max_epoch'] = MAX_EPOCH
-decay_step = 2 * 16 / (config['train_amount'] - 1)
+config['mask_names'] = mask_names[:-1]
+config['full_zero_num'] = 1
+config['class_num'] = class_num
+decay_step = 2 * 19 / (config['train_amount'] - 1)
 ################################################################
 
 class Network:
@@ -137,9 +141,9 @@ class Network:
             predict_conv_2 = tools.Ops.conv3d(relu_1, k=1, out_c=num_class, str=1, name="conv_predict_2")
             bn_2 = tools.Ops.batch_norm(predict_conv_2,"bn_predict_2",training)
             relu_2 = tools.Ops.xxlu(bn_2, name="relu_predict_2")
-            pred = tf.nn.softmax(relu_2,dim=-1,name="classify_probability")
-            pred_label = tf.arg_max(pred,dimension=-1)
-        return relu_2,pred,pred_label
+            softmax_pred = tf.nn.softmax(relu_2,dim=-1,name="classify_probability")
+            argmax_label = tf.argmax(softmax_pred,axis=-1)
+        return relu_2,softmax_pred,argmax_label
 
     def E_Loss(self,logits,label):
         return tf.nn.softmax_cross_entropy_with_logits(labels=label,logits=logits,dim=-1)
@@ -151,55 +155,70 @@ class Network:
         return concat_conv
 
     def Segmentor(self,X,training,batch_size):
-        original=64
-        growth=12
-        dense_layer_num=8
-        X_input = self.Input(X,"input",batch_size,original,training)
-        down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
-        dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num,growth,training)
-        down_2 = self.Down_Sample(dense_1,"down_sample_2",2,training,original*2)
+        original = 16
+        growth = 12
+        dense_layer_num = 6
+        X_input = self.Input(X, "input", batch_size, original, training)
+        down_1 = self.Down_Sample(X_input, "down_sample_1", 2, training, original)
+        dense_1 = self.Dense_Block(down_1, "dense_block_1", dense_layer_num, growth, training)
+        down_2 = self.Down_Sample(dense_1, "down_sample_2", 2, training, original * 2)
 
-        dense_2 = self.Dense_Block(down_2,"dense_block_2",dense_layer_num,growth,training)
+        dense_2 = self.Dense_Block(down_2, "dense_block_2", dense_layer_num, growth, training)
 
-        up_input_1 = self.Concat([down_2,dense_2,
-                                  self.Down_Sample(dense_1,"cross_1",2,training,original),
-                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=original*3,name="concat_up_1")
-        up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,original*2)
+        up_input_1 = self.Concat([down_2, dense_2,
+                                  self.Down_Sample(dense_1, "cross_1", 2, training, original),
+                                  self.Down_Sample(X_input, "cross_2", 4, training, original)], axis=4,
+                                 size=original * 3, name="concat_up_1")
+        up_1 = self.Up_Sample(up_input_1, "up_sample_1", 2, training, original * 2)
 
-        dense_input_3 = self.Concat([up_1,dense_1],axis=4,size=original*2,name="concat_dense_3")
-        dense_3 = self.Dense_Block(dense_input_3,"dense_block_3",dense_layer_num,growth,training)
+        dense_input_3 = self.Concat([up_1, dense_1], axis=4, size=original * 2, name="concat_dense_3")
+        dense_3 = self.Dense_Block(dense_input_3, "dense_block_3", dense_layer_num, growth, training)
 
-        up_input_2 = self.Concat([dense_3,down_1],axis=4,size=original,name="concat_up_2")
-        up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original)
+        up_input_2 = self.Concat([dense_3, down_1], axis=4, size=original, name="concat_up_2")
+        up_2 = self.Up_Sample(up_input_2, "up_sample_2", 2, training, original)
 
-        predict_input = tf.concat([up_2,X_input],axis=4,name="predict_input")
+        predict_input = self.Concat([up_2, X_input,
+                                     self.Up_Sample(up_input_1, "cross_3", 4, training, original),
+                                     self.Up_Sample(dense_input_3, "cross_4", 2, training, original),
+                                     self.Up_Sample(dense_3, "cross_5", 2, training, original)], axis=4,
+                                    size=original * 4, name="predict_input")
 
         return self.Pixel_Classifier(predict_input,"segment",training,class_num)
 
     def train(self,configure):
         #  data
         data = tools.Data_multi(configure, epoch_walked/re_example_epoch)
+        X_data, Y_data = data.load_X_Y_voxel_train_next_batch()
         # network
-        X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
-        Y = tf.placeholder(shape=[batch_size, output_shape[0], output_shape[1], output_shape[2],class_num], dtype=tf.float32)
-        lr = tf.placeholder(tf.float32)
-        training = tf.placeholder(tf.bool)
+        self.X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
+        self.Y = tf.placeholder(shape=[batch_size, output_shape[0], output_shape[1], output_shape[2],class_num], dtype=tf.float32)
+        self.lr = tf.placeholder(tf.float32)
+        self.training = tf.placeholder(tf.bool)
+        X = self.X
+        Y = self.Y
+        lr = self.lr
+        training = self.training
         with tf.variable_scope('segment'):
-            pixel_logits,prob,pred_label = self.Segmentor(X, training, batch_size)
+            # [relu , softmax, argmax]
+            self.pred_unsoft, self.softmax_pred, self.argmax_label = self.Segmentor(X, training, batch_size)
+            pred_unsoft = self.pred_unsoft
+            softmax_pred = self.softmax_pred
+            argmax_label = self.argmax_label
         with tf.variable_scope('loss'):
-            pixel_loss = self.E_Loss(pixel_logits,Y)
+            self.pixel_loss = self.E_Loss(softmax_pred,Y)
+            pixel_loss = self.pixel_loss
 
         #  weight map
         weight_map = tf.convert_to_tensor(np.zeros(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]]),dtype=tf.float32)
         pred_masks = []
         for i in range(class_num):
-            pred_masks.append(tf.cast(tf.equal(pred_label,i),tf.float32))
+            pred_masks.append(tf.cast(tf.equal(argmax_label,i),tf.float32))
         for i in range(class_num):
-            weight_map = weight_map+weights[i]*pred_masks[i]
+            weight_map = weight_map+weights[i]*Y[:,:,:,:,i]
 
         #  weighted loss
         enhanced_loss = weight_map * pixel_loss
-
+        mean_enhanced_loss = tf.reduce_mean(enhanced_loss)
         #  accuracy
         accuracys = []
         for i in range(class_num):
@@ -210,18 +229,90 @@ class Network:
         airway_acc_sum = tf.summary.scalar("airway_accuracy",accuracys[1])
         background_acc_sum = tf.summary.scalar("background_acc",accuracys[2])
         total_acc_sum = tf.summary.scalar("total_accuracy",total_acc)
-        train_merge_op = tf.summary.merge([artery_acc_sum,airway_acc_sum,background_acc_sum])
-        test_merge_op = tf.summary.merge([total_acc_sum])
+        normal_loss_sum = tf.summary.scalar("normal_loss",tf.reduce_mean(pixel_loss))
+        enhanced_loss_sum = tf.summary.scalar("enhanced_loss",mean_enhanced_loss)
+        train_merge_op = tf.summary.merge([artery_acc_sum,airway_acc_sum,background_acc_sum,normal_loss_sum,enhanced_loss_sum])
+        self.test_merge_op = tf.summary.merge([total_acc_sum])
+        test_merge_op = self.test_merge_op
 
+        # trainer
+        train_op = tf.train.AdamOptimizer(learning_rate=lr, beta1=0.9, beta2=0.999, epsilon=1e-8).minimize(mean_enhanced_loss)
+
+        saver = tf.train.Saver(max_to_keep=1)
 
         with tf.Session() as sess:
+
+            # summary writers
             sum_writer_train = tf.summary.FileWriter(self.train_sum_dir, sess.graph)
-            sum_write_test = tf.summary.FileWriter(self.test_sum_dir, sess.grap)
+            sum_write_test = tf.summary.FileWriter(self.test_sum_dir, sess.graph)
 
+            # load model data if pre-trained
+            sess.run(tf.group(tf.global_variables_initializer(),
+                              tf.local_variables_initializer()))
+            if os.path.isfile(self.train_models_dir + 'model.cptk.data-00000-of-00001'):
+                print "restoring saved model"
+                saver.restore(sess, self.train_models_dir + 'model.cptk')
+            learning_rate = ori_lr * pow(power, (epoch_walked / decay_step))
 
+            # start main loop
+            global_step = step_walked
+            for epoch in range(epoch_walked, MAX_EPOCH):
+                # re-example
+                if epoch % re_example_epoch == 0 and epoch > 0:
+                    del data
+                    gc.collect()
+                    data = tools.Data_multi(configure, epoch_walked / re_example_epoch)
+                train_amount = len(data.train_numbers)
+                test_amount = len(data.test_numbers)
+                if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
+                    if epoch % total_test_epoch == 0 and epoch > 0:
+                        print "full testing"
+                    data.shuffle_X_Y_pairs()
+                    total_train_batch_num = data.total_train_batch_num
+                    for i in range(total_train_batch_num):
+                        X_train_batch, Y_train_batch = data.load_X_Y_voxel_train_next_batch()
+                        if epoch % decay_step == 0 and epoch > epoch_walked and i == 0:
+                            learning_rate = learning_rate * power
+                        _, loss_val = sess.run([train_op,mean_enhanced_loss],feed_dict={X:X_train_batch,Y:Y_train_batch,
+                                                                                   lr:learning_rate,training:True})
+                        global_step += 1
 
+                        # temporary block result show
+                        if i % show_step == 0 and i > 0:
+                            print "epoch:", epoch, " i: ", i, " , training loss : ", loss_val, " , learning rate : ",learning_rate
+
+                        # block test
+                        if i % block_test_step == 0 and i > 0:
+                            X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
+                            loss_val,artery_acc_val,airway_acc_val,background_acc_val,train_summay \
+                                = sess.run([mean_enhanced_loss,accuracys[0],accuracys[1],accuracys[2],train_merge_op],
+                                           feed_dict={X:X_test_batch,Y:Y_test_batch,training:False})
+                            print "epoch:", epoch, " global step: ", global_step
+                            print "artery accuracy : ",artery_acc_val, "airway accuracy : ",airway_acc_val
+                            sum_writer_train.add_summary(train_summay,global_step=global_step)
+                        if i % model_save_step == 0 and i > 0:
+                            saver.save(sess, save_path=self.train_models_dir + 'model.cptk')
+                            print "epoch:", epoch, " i:", i, "regular model saved!"
+                else:
+                    print "bad data , next epoch", epoch
         print "end training"
 
+    # need to be modified
+    def full_testing(self,sess,):
+        print '********************** FULL TESTING ********************************'
+        time_begin = time.time()
+        origin_data = read_dicoms(test_dir + "original1")
+        mask_dir = test_dir + "artery"
+        test_batch_size = batch_size
+        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data')
+        test_data.organize_blocks()
+        test_mask = read_dicoms(mask_dir)
+        array_mask = ST.GetArrayFromImage(test_mask)
+        array_mask = np.transpose(array_mask, (2, 1, 0))
+        print "mask shape: ", np.shape(array_mask)
+        block_numbers = test_data.blocks.keys()
+
+    #   ToDo  load data and calculate data blocks from test data class
 
 
     def post_process(self,test_result_array):

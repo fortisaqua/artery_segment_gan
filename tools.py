@@ -247,7 +247,9 @@ class Data_multi():
         self.train_amount = config['train_amount']
         self.data_size = config['data_size']
         self.max_epoch = config['max_epoch']
-
+        self.mask_names = config['mask_names']
+        self.full_zero_num = config['full_zero_num']
+        self.class_num = config['class_num']
         self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config['meta_path'],self.epoch)
 
         print "train_numbers:",len(self.train_numbers),"---",self.train_numbers
@@ -256,9 +258,12 @@ class Data_multi():
         self.total_test_seq_batch,self.test_locs = self.load_X_Y_test_batch_num()
         print "total_train_batch_num: ", self.total_train_batch_num
         print "total_test_seq_batch: ",self.total_test_seq_batch
+        self.check_data()
 
     def load_X_Y_numbers_special(self,meta_path,epoch):
-        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_multi_data(meta_path,self.data_size,epoch,self.train_amount,self.max_epoch)
+        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_multi_data(meta_path,self.data_size,epoch,
+                                                                                self.train_amount,self.max_epoch,
+                                                                                self.mask_names,self.full_zero_num)
         numbers=[]
         train_numbers=[]
         test_numbers=[]
@@ -319,15 +324,17 @@ class Data_multi():
             Y_data_voxels.append(self.mask[pair[0]][pair[1]])
         self.train_batch_index += 1
         X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
-        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
+        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2],self.class_num],np.float32)
         for i in range(len(X_data_voxels)):
             temp_X = X_data_voxels[i][:,:,:]
-            temp_y = Y_data_voxels[i][:,:,:]
             shape_X = np.shape(temp_X)
-            shape_Y = np.shape(temp_y)
             X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_data_voxels[i][:,:,:]
-            Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] = Y_data_voxels[i][:,:,:]
 
+            temp_y = Y_data_voxels[i]["artery"][:,:,:]
+            shape_Y = np.shape(temp_y)
+            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],0] = Y_data_voxels[i]["artery"][:, :, :]
+            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],1] = Y_data_voxels[i]["airway"][:, :, :]
+            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],2] = Y_data_voxels[i]["background"][:, :, :]
         return X_data,Y_data
 
     def load_X_Y_voxel_test_next_batch(self,fix_sample=False):
@@ -341,19 +348,50 @@ class Data_multi():
             X_test_voxels_batch.append(self.dicom_origin[temp_pair[0]][temp_pair[1]])
             Y_test_voxels_batch.append(self.mask[temp_pair[0]][temp_pair[1]])
         X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
-        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
-        '''
-        X_test_voxels_batch=np.asarray(X_test_voxels_batch)
-        Y_test_voxels_batch=np.asarray(Y_test_voxels_batch)
-        '''
+        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2],self.class_num],np.float32)
         for i in range(len(X_test_voxels_batch)):
-            temp_X = X_test_voxels_batch[i][:,:,:]
-            temp_y = Y_test_voxels_batch[i][:,:,:]
+            temp_X = X_test_voxels_batch[i][:, :, :]
             shape_X = np.shape(temp_X)
+            X_data[i, :shape_X[0], :shape_X[1], :shape_X[2]] = X_test_voxels_batch[i][:, :, :]
+
+            temp_y = Y_test_voxels_batch[i]["artery"][:, :, :]
             shape_Y = np.shape(temp_y)
-            X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_test_voxels_batch[i][:,:,:]
-            Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] = Y_test_voxels_batch[i][:,:,:]
+            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 0] = Y_test_voxels_batch[i]["artery"][:, :, :]
+            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 1] = Y_test_voxels_batch[i]["airway"][:, :, :]
+            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 2] = Y_test_voxels_batch[i]["background"][:, :, :]
         return X_data,Y_data
+
+    ###################  check datas
+    def check_data(self):
+        fail_list = []
+        tag = True
+        for pair in self.train_locs:
+            test_array = np.zeros(self.data_size,np.uint8)
+            for name in self.mask_names:
+                test_array = test_array + self.mask[pair[0]][pair[1]][name]
+            test_array = test_array + self.mask[pair[0]][pair[1]]["background"]
+            if np.max(test_array) == np.min(test_array) ==1:
+                tag = True
+            else:
+                tag = False
+                fail_list.append(pair)
+        for pair in self.test_locs:
+            test_array = np.zeros(self.data_size, np.uint8)
+            for name in self.mask_names:
+                test_array = test_array + self.mask[pair[0]][pair[1]][name]
+            test_array = test_array + self.mask[pair[0]][pair[1]]["background"]
+            if np.max(test_array) == np.min(test_array) == 1:
+                tag = True
+            else:
+                tag = False
+                fail_list.append(pair)
+                print "=============================================="
+        if tag:
+            print "checked!"
+        else:
+            print "some are failed"
+            for item in fail_list:
+                print item
 
 
 class Ops:

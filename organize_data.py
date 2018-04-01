@@ -158,7 +158,7 @@ def get_organized_data(meta_path, single_size,epoch,train_amount):
     return dicom_datas,mask_datas,accept_zeros
 
 # method of getting many masks for multi-class classifying job on pixel level
-def get_multi_data(meta_path, single_size,epoch,train_amount,max_epoch):
+def get_multi_data(meta_path, single_size,epoch,train_amount,max_epoch,mask_names,full_zero_num):
     rand = random.Random()
     dicom_datas = dict()
     mask_datas = dict()
@@ -172,7 +172,7 @@ def get_multi_data(meta_path, single_size,epoch,train_amount,max_epoch):
         to_be_trained = total_keys[begin:end]
     else:
         to_be_trained = total_keys[begin:]+total_keys[:end]
-    accept_zeros = rand.sample(to_be_trained, 2)
+    accept_zeros = rand.sample(to_be_trained, full_zero_num)
     # for i in range(8):
     #     accept_zeros = to_be_trained[accept_zeros[i]]
     for number,data_dir in meta_data.items():
@@ -184,7 +184,7 @@ def get_multi_data(meta_path, single_size,epoch,train_amount,max_epoch):
             original_array = dataset['original']
             mask_arrays = dict()
             for name in dataset.keys():
-                if not name == "original":
+                if name in mask_names:
                     mask_arrays[name] = dataset[name]
             data_shape = np.shape(original_array)
 
@@ -193,17 +193,23 @@ def get_multi_data(meta_path, single_size,epoch,train_amount,max_epoch):
                     for k in range(0,data_shape[2],single_size[2]/2):
                         if i+single_size[0]/2<data_shape[0] and j+single_size[1]/2<data_shape[1] and k+single_size[2]/2<data_shape[2]:
                             clipped_mask = dict()
-                            flag = True
+                            flag = False
                             for name in mask_arrays.keys():
-                                if not "lung" in name:
-                                    clipped_mask[name] = mask_arrays[name][i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
-                                    if np.sum(np.float32(clipped_mask[name])) / (single_size[0] * single_size[1] * single_size[2]) < (0.05 * (1 - epoch * 1.0 / max_epoch))\
-                                            and not number in accept_zeros:
-                                        flag = False
+                                temp_mask = mask_arrays[name][i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
+                                temp_shape = np.shape(temp_mask)
+                                clipped_mask[name] = np.zeros(single_size,np.uint8)
+                                clipped_mask[name][:temp_shape[0],:temp_shape[1],:temp_shape[2]] += temp_mask
+                                if np.sum(np.float32(clipped_mask[name])) / (single_size[0] * single_size[1] * single_size[2]) >= (0.05 * (1 - epoch * 1.0 / max_epoch))\
+                                        or number in accept_zeros:
+                                    flag = True
                             if flag:
-                                clipped_dicom = original_array[i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
+                                temp_dicom = original_array[i:i+single_size[0],j:j+single_size[1],k:k+single_size[2]]
+                                temp_shape = np.shape(temp_dicom)
+                                clipped_dicom = np.zeros(single_size,np.int32)
+                                clipped_dicom[:temp_shape[0], :temp_shape[1], :temp_shape[2]] += temp_dicom
                                 dicom_datas[number].append(clipped_dicom)
-                                mask_arrays[number].append(clipped_mask)
+                                clipped_mask["background"] = np.uint8((clipped_mask["airway"]+clipped_mask["artery"])==0)
+                                mask_datas[number].append(clipped_mask)
 
     return dicom_datas,mask_datas,accept_zeros
 
