@@ -15,13 +15,13 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
-ori_lr = 0.0001
+ori_lr = 0.0002
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 0
-step_walked = 0
+epoch_walked = 17
+step_walked = 13150
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -29,25 +29,25 @@ total_test_epoch = 4
 show_step = 10
 block_test_step = 20
 model_save_step = 50
-output_epoch = total_test_epoch * 5
+output_epoch = total_test_epoch * 10
 test_extra_threshold = 0.2
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
-config['meta_path'] = '/opt/artery_extraction/data_meta_artery.pkl'
+config['meta_path'] = '/opt/artery_extraction/data_meta.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 1
-config['train_amount'] = 3
+config['test_amount'] = 2
+config['train_amount'] = 8
 decay_step = 2 * 16 / (config['train_amount'] - 1)
 ################################################################
 
 class Network:
     def __init__(self):
-        self.train_models_dir = './artery_train_models/'
-        self.train_sum_dir = './artery_sum/train/'
-        self.test_results_dir = './artery_test_results/'
-        self.test_sum_dir = './artery_sum/test/'
+        self.train_models_dir = './D_train_models/'
+        self.train_sum_dir = './D_sum/train/'
+        self.test_results_dir = './D_test_results/'
+        self.test_sum_dir = './D_sum/test/'
 
         if os.path.exists(self.test_results_dir):
             shutil.rmtree(self.test_results_dir)
@@ -136,8 +136,8 @@ class Network:
 
     def ae_u(self,X,training,batch_size,threshold):
         original=16
-        growth=32
-        dense_layer_num=6
+        growth=12
+        dense_layer_num=8
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
         dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num,growth,training)
