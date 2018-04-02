@@ -137,7 +137,7 @@ class Network:
     def ae_u(self,X,training,batch_size,threshold):
         original=16
         growth=6
-        dense_layer_num=6
+        dense_layer_num=8
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
         dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num,growth,training)
