@@ -37,8 +37,8 @@ config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 1
-config['train_amount'] = 3
+config['test_amount'] = 2
+config['train_amount'] = 8
 decay_step = 2 * 39 / (config['train_amount'] - 1)
 ################################################################
 
