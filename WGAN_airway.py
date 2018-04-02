@@ -14,7 +14,7 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-batch_size =3
+batch_size = 4
 ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
@@ -38,7 +38,7 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 8
+config['train_amount'] = 10
 decay_step = 2 * 39 / (config['train_amount'] - 1)
 ################################################################
 
@@ -490,7 +490,7 @@ class Network:
         test_result_array = test_data.get_result()
         print "result shape: ", np.shape(test_result_array)
         to_be_transformed = self.post_process(test_result_array)
-        if epoch == 0:
+        if epoch == total_test_epoch:
             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
             mask_img.SetSpacing(test_data.space)
             ST.WriteImage(mask_img, './test_result/test_mask.vtk')
