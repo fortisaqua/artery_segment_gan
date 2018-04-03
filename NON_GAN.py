@@ -21,14 +21,14 @@ power = 0.9
 # [artery , airway , background]
 mask_names = ["artery","airway","background"]
 weights = [0.7,0.2,0.1]
-input_shape = [128,128,64]
-output_shape = [128,128,64]
+input_shape = [64,64,128]
+output_shape = [64,64,128]
 epoch_walked = 0
 step_walked = 0
-MAX_EPOCH = 2000
+MAX_EPOCH = 20
 class_num = 3
 re_example_epoch = 2
-total_test_epoch = 4
+total_test_epoch = 1
 show_step = 10
 block_test_step = 20
 model_save_step = 50
@@ -40,8 +40,8 @@ config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_multi_class.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 1
-config['train_amount'] = 4
+config['test_amount'] = 3
+config['train_amount'] = 6
 config['max_epoch'] = MAX_EPOCH
 config['mask_names'] = mask_names[:-1]
 config['full_zero_num'] = 1
@@ -222,7 +222,9 @@ class Network:
         #  accuracy
         accuracys = []
         for i in range(class_num):
-            accuracys.append(tf.reduce_mean(tf.cast(tf.equal(pred_masks[i],Y[:,:,:,:,i]),tf.float32)))
+            temp_pred = tf.cast(pred_masks[i],tf.float32)
+            temp_mask = tf.cast(Y[:,:,:,:,i],tf.float32)
+            accuracys.append(2*tf.reduce_sum(temp_pred*temp_mask)/tf.reduce_sum((temp_pred+temp_mask)))
         # [artery , airway , background]
         self.total_acc = tf.placeholder(tf.float32)
         artery_acc_sum = tf.summary.scalar("artery_accuracy",accuracys[0])
@@ -284,9 +286,11 @@ class Network:
                         # block test
                         if i % block_test_step == 0 and i > 0:
                             X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
-                            loss_val,artery_acc_val,airway_acc_val,background_acc_val,train_summay \
-                                = sess.run([mean_enhanced_loss,accuracys[0],accuracys[1],accuracys[2],train_merge_op],
+                            loss_val,artery_acc_val,airway_acc_val,background_acc_val,train_summay, predic_label\
+                                = sess.run([mean_enhanced_loss,accuracys[0],accuracys[1],accuracys[2],train_merge_op,argmax_label],
                                            feed_dict={X:X_test_batch,Y:Y_test_batch,training:False})
+                            if i == block_test_step:
+                                ST.WriteImage(np.uint8(np.transpose(predic_label[0,:,:,:],[2,1,0])),self.test_results_dir+"epoch_"+str(epoch)+".vtk")
                             print "epoch:", epoch, " global step: ", global_step
                             print "artery accuracy : ",artery_acc_val, "airway accuracy : ",airway_acc_val
                             sum_writer_train.add_summary(train_summay,global_step=global_step)
