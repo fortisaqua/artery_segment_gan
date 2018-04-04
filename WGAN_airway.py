@@ -20,8 +20,8 @@ power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 114
-step_walked = 70860
+epoch_walked = 0
+step_walked = 0
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -136,7 +136,7 @@ class Network:
 
     def ae_u(self,X,training,batch_size,threshold):
         original=16
-        growth=6
+        growth=12
         dense_layer_num=6
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
@@ -156,8 +156,12 @@ class Network:
         up_input_2 = self.Concat([dense_3,down_1],axis=4,size=original,name="concat_up_2")
         up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original)
 
-        predict_input = tf.concat([up_2,X_input],axis=4,name="predict_input")
-        vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input,"predict",training,threshold)
+        predict_input = self.Concat([up_2, X_input,
+                                     self.Up_Sample(up_input_1, "cross_3", 4, training, original),
+                                     self.Up_Sample(dense_input_3, "cross_4", 2, training, original),
+                                     self.Up_Sample(dense_3, "cross_5", 2, training, original)], axis=4,
+                                    size=original * 4, name="predict_input")
+        vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input, "predict", training, threshold)
 
         return vox_sig, vox_sig_modified, vox_no_sig
 
@@ -273,7 +277,7 @@ class Network:
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
                     weight_for = 0.5 + (1-1.0*epoch/MAX_EPOCH)*0.35
-                    if epoch % total_test_epoch == 0 and epoch > 0:
+                    if epoch % total_test_epoch == 0:
                         self.full_testing(sess,X,w,threshold,
                                           test_merge_op,
                                           sum_write_test,training,
@@ -493,7 +497,7 @@ class Network:
         if epoch == total_test_epoch:
             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
             mask_img.SetSpacing(test_data.space)
-            ST.WriteImage(mask_img, './test_result/test_mask.vtk')
+            ST.WriteImage(mask_img, self.test_results_dir + 'test_mask.vtk')
         test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
                 np.sum(to_be_transformed) + np.sum(array_mask))
         test_summary = sess.run(test_merge_op, feed_dict={total_acc: test_IOU})
@@ -516,10 +520,10 @@ class Network:
         final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
         final_img.SetSpacing(spacing)
         print "writing full testing result"
-        if not os.path.exists("./test_result"):
-            os.makedirs("./test_result")
-        print './test_result/test_result' + str(epoch) + '.vtk'
-        ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
+        if not os.path.exists(self.test_results_dir):
+            os.makedirs(self.test_results_dir)
+        print self.test_results_dir + "test_result_" + str(epoch) + '.vtk'
+        ST.WriteImage(final_img, self.test_results_dir + "test_result_" + str(epoch) + '.vtk')
 
     def test(self,dicom_dir):
         # X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
