@@ -25,20 +25,20 @@ step_walked = 0
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
-total_test_epoch = 4
+total_test_epoch = 1
 show_step = 10
 block_test_step = 20
 model_save_step = 50
 output_epoch = total_test_epoch * 5
-test_extra_threshold = 0.2
+test_extra_threshold = 0.25
 edge_thickness = 15
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_artery.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 1
-config['train_amount'] = 3
+config['test_amount'] = 2
+config['train_amount'] = 10
 decay_step = 2 * 16 / (config['train_amount'] - 1)
 ################################################################
 
