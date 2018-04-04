@@ -39,7 +39,7 @@ config['meta_path'] = '/opt/artery_extraction/data_meta_artery.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 10
-decay_step = 2 * 16 / (config['train_amount'] - 1)
+decay_step = re_example_epoch * 16 / (config['train_amount'] - 1)
 ################################################################
 
 class Network:
@@ -228,6 +228,7 @@ class Network:
 
         # generator loss with gan loss
         gan_g_loss = -tf.reduce_mean(XY_fake_pair)
+        gan_g_loss_sum = tf.summary.scalar("loss from discriminator for the generator",gan_g_loss)
         gan_g_w = 5
         ae_w = 100 - gan_g_w
         ae_gan_g_loss = ae_w * g_loss + gan_g_w * gan_g_loss
@@ -246,7 +247,7 @@ class Network:
         total_acc = tf.placeholder(tf.float32)
         train_sum = tf.summary.scalar("train_block_accuracy", block_acc)
         test_sum = tf.summary.scalar("total_test_accuracy", total_acc)
-        train_merge_op = tf.summary.merge([train_sum,ae_g_loss_sum,gan_d_loss_sum,g_loss_sum])
+        train_merge_op = tf.summary.merge([train_sum,ae_g_loss_sum,gan_g_loss_sum,gan_d_loss_sum,g_loss_sum])
         test_merge_op = tf.summary.merge([test_sum])
 
         saver = tf.train.Saver(max_to_keep=1)
