@@ -188,9 +188,9 @@ class Network:
                         # batch normal layer
                         layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
                     layers_d.append(layer)
-                with tf.variable_scope("multi_scale"):
-                    scales = []
-                    scales.append(layers_d[-1])
+        with tf.variable_scope("multi_scale"):
+            scales = []
+            scales.append(layers_d[-1])
             for j in range(len(layers_d)-1):
                 with tf.variable_scope("cross_down_"+str(j+1)):
                     single_scale = tools.Ops.conv3d(layers_d[j],k=4*(j+1),out_c=c_d[j]/2,str=s_c[j],name='conv_'+str(j))
