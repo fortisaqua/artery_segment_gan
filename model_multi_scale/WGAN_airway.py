@@ -33,15 +33,15 @@ output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 20
 original_g = 16
-growth_d = 18
-layer_num_d = 6
+growth_d = 12
+layer_num_d = 4
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 12
+config['train_amount'] = 11
 decay_step = 2 * 39 / (config['train_amount'] - 1)
 ################################################################
 
@@ -174,20 +174,33 @@ class Network:
             Y = tf.reshape(Y, [batch_size, output_shape[0], output_shape[1], output_shape[2], 1])
             # layer = tf.concat([X, Y], axis=4)
             layer = X*Y
-            c_d = [1, 2, 64, 128, 256, 512]
-            s_d = [0, 2, 2, 2, 2, 2]
+            c_d = [16, 64, 128, 256]
+            s_d = [2, 2, 2, 2, 2]
+            s_c = [16, 8, 4, 2, 2]
             layers_d = []
-            layers_d.append(layer)
+            layers_d.append(tools.Ops.conv3d(layer,k=3,out_c=c_d[0]/2,str=1,name='inputs'))
         with tf.variable_scope("down_sample"):
-            for i in range(1,6,1):
-                layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_1'+str(i))
-                if i!=5:
-                    layer = tools.Ops.xxlu(layer, name='lrelu')
-                    # batch normal layer
-                    layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
-                layers_d.append(layer)
+            for i in range(len(c_d)):
+                with tf.variable_scope("down_sample_"+str(i+1)):
+                    layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i]/2,str=s_d[i],name='d_1'+str(i))
+                    if i!=5:
+                        layer = tools.Ops.xxlu(layer, name='lrelu')
+                        # batch normal layer
+                        layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
+                    layers_d.append(layer)
+        with tf.variable_scope("multi_scale"):
+            scales = []
+            scales.append(layers_d[-1])
+            for j in range(len(layers_d)-1):
+                with tf.variable_scope("cross_down_"+str(j+1)):
+                    single_scale = tools.Ops.conv3d(layers_d[j],k=4*(j+1),out_c=c_d[j]/2,str=s_c[j],name='conv_'+str(j))
+                scales.append(single_scale)
+            with tf.variable_scope("concat_all"):
+                final_input = tf.concat([l for l in scales],axis=4)
+            with tf.variable_scope("final_conv"):
+                final_conv = tools.Ops.conv3d(final_input,k=3,out_c=256,str=1,name='final_conv')
         with tf.variable_scope("flating"):
-            y = tf.reshape(layers_d[-1], [batch_size, -1])
+            y = tf.reshape(final_conv, [batch_size, -1])
         return tf.nn.sigmoid(y)
 
     def train(self,configure):
