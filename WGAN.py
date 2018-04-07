@@ -13,7 +13,7 @@ import gc
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 batch_size = 2
 ori_lr = 0.0001
 power = 0.9
@@ -29,9 +29,12 @@ total_test_epoch = 1
 show_step = 10
 block_test_step = 20
 model_save_step = 50
-output_epoch = total_test_epoch * 5
+output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
-edge_thickness = 15
+edge_thickness = 20
+original_g = 16
+growth_d = 18
+layer_num_d = 6
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
@@ -39,15 +42,15 @@ config['meta_path'] = '/opt/artery_extraction/data_meta_artery.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 10
-decay_step = re_example_epoch * 16 / (config['train_amount'] - 1)
+decay_step = 2 * 16 / (config['train_amount'] - 1)
 ################################################################
 
 class Network:
     def __init__(self):
-        self.train_models_dir = './artery_train_models/'
-        self.train_sum_dir = './artery_sum/train/'
-        self.test_results_dir = './artery_test_results/'
-        self.test_sum_dir = './artery_sum/test/'
+        self.train_models_dir = './airway_train_models/'
+        self.train_sum_dir = './airway_sum/train/'
+        self.test_results_dir = './airway_test_results/'
+        self.test_sum_dir = './airway_sum/test/'
 
         if os.path.exists(self.test_results_dir):
             shutil.rmtree(self.test_results_dir)
@@ -135,15 +138,16 @@ class Network:
         return concat_conv
 
     def ae_u(self,X,training,batch_size,threshold):
-        original=16
-        growth=12
-        dense_layer_num=6
+        original=original_g
+        growth=growth_d
+        dense_layer_num=layer_num_d
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
         dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num,growth,training)
         down_2 = self.Down_Sample(dense_1,"down_sample_2",2,training,original*2)
-
         dense_2 = self.Dense_Block(down_2,"dense_block_2",dense_layer_num,growth,training)
+        down_3 = self.Down_Sample(dense_2,"down_sample_2",2,training,original*2)
+        dense_3 = self.Dense_Block(down_3,"dense_block_2",dense_layer_num,growth,training)
 
         up_input_1 = self.Concat([down_2,dense_2,
                                   self.Down_Sample(dense_1,"cross_1",2,training,original),
@@ -156,11 +160,12 @@ class Network:
         up_input_2 = self.Concat([dense_3,down_1],axis=4,size=original,name="concat_up_2")
         up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original)
 
-        predict_input = self.Concat([up_2,X_input,
-                                   self.Up_Sample(up_input_1,"cross_3",4,training,original),
-                                   self.Up_Sample(dense_input_3,"cross_4",2,training,original),
-                                   self.Up_Sample(dense_3,"cross_5",2,training,original)],axis=4,size=original*4,name="predict_input")
-        vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input,"predict",training,threshold)
+        predict_input = self.Concat([up_2, X_input,
+                                     self.Up_Sample(up_input_1, "cross_3", 4, training, original),
+                                     self.Up_Sample(dense_input_3, "cross_4", 2, training, original),
+                                     self.Up_Sample(dense_3, "cross_5", 2, training, original)], axis=4,
+                                    size=original * 4, name="predict_input")
+        vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input, "predict", training, threshold)
 
         return vox_sig, vox_sig_modified, vox_no_sig
 
@@ -228,7 +233,6 @@ class Network:
 
         # generator loss with gan loss
         gan_g_loss = -tf.reduce_mean(XY_fake_pair)
-        gan_g_loss_sum = tf.summary.scalar("loss from discriminator for the generator",gan_g_loss)
         gan_g_w = 5
         ae_w = 100 - gan_g_w
         ae_gan_g_loss = ae_w * g_loss + gan_g_w * gan_g_loss
@@ -247,7 +251,7 @@ class Network:
         total_acc = tf.placeholder(tf.float32)
         train_sum = tf.summary.scalar("train_block_accuracy", block_acc)
         test_sum = tf.summary.scalar("total_test_accuracy", total_acc)
-        train_merge_op = tf.summary.merge([train_sum,ae_g_loss_sum,gan_g_loss_sum,gan_d_loss_sum,g_loss_sum])
+        train_merge_op = tf.summary.merge([train_sum,ae_g_loss_sum,gan_d_loss_sum,g_loss_sum])
         test_merge_op = tf.summary.merge([test_sum])
 
         saver = tf.train.Saver(max_to_keep=1)
@@ -277,84 +281,89 @@ class Network:
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
                     weight_for = 0.5 + (1-1.0*epoch/MAX_EPOCH)*0.35
-                    if epoch % total_test_epoch == 0 and epoch > 0:
-                        print '********************** FULL TESTING ********************************'
-                        time_begin = time.time()
-                        origin_dir = read_dicoms(test_dir + "original1")
-                        mask_dir = test_dir + "artery"
-                        test_batch_size = batch_size
-                        # test_data = tools.Test_data(dicom_dir,input_shape)
-                        test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
-                        test_data.organize_blocks()
-                        test_mask = read_dicoms(mask_dir)
-                        array_mask = ST.GetArrayFromImage(test_mask)
-                        array_mask = np.transpose(array_mask, (2, 1, 0))
-                        print "mask shape: ", np.shape(array_mask)
-                        block_numbers = test_data.blocks.keys()
-                        for i in range(0, len(block_numbers), test_batch_size):
-                            batch_numbers = []
-                            if i + test_batch_size < len(block_numbers):
-                                temp_input = np.zeros(
-                                    [test_batch_size, input_shape[0], input_shape[1], input_shape[2]])
-                                for j in range(test_batch_size):
-                                    temp_num = block_numbers[i + j]
-                                    temp_block = test_data.blocks[temp_num]
-                                    batch_numbers.append(temp_num)
-                                    block_array = temp_block.load_data()
-                                    block_shape = np.shape(block_array)
-                                    temp_input[j, 0:block_shape[0], 0:block_shape[1],
-                                    0:block_shape[2]] += block_array
-                                Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run(
-                                    [Y_pred, Y_pred_modi, Y_pred_nosig],
-                                    feed_dict={X: temp_input,
-                                               training: False,
-                                               w: weight_for,
-                                               threshold: upper_threshold + test_extra_threshold})
-                                for j in range(test_batch_size):
-                                    test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
-                            else:
-                                temp_batch_size = len(block_numbers) - i
-                                temp_input = np.zeros(
-                                    [temp_batch_size, input_shape[0], input_shape[1], input_shape[2]])
-                                for j in range(temp_batch_size):
-                                    temp_num = block_numbers[i + j]
-                                    temp_block = test_data.blocks[temp_num]
-                                    batch_numbers.append(temp_num)
-                                    block_array = temp_block.load_data()
-                                    block_shape = np.shape(block_array)
-                                    temp_input[j, 0:block_shape[0], 0:block_shape[1],
-                                    0:block_shape[2]] += block_array
-                                X_temp = tf.placeholder(
-                                    shape=[temp_batch_size, input_shape[0], input_shape[1], input_shape[2]],
-                                    dtype=tf.float32)
-                                with tf.variable_scope('generator', reuse=True):
-                                    Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp = self.ae_u(X_temp, training,
-                                                                                                 temp_batch_size,
-                                                                                                 threshold)
-                                Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run(
-                                    [Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp],
-                                    feed_dict={X_temp: temp_input,
-                                               training: False,
-                                               w: weight_for,
-                                               threshold: upper_threshold + test_extra_threshold})
-                                for j in range(temp_batch_size):
-                                    test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
-                        test_result_array = test_data.get_result()
-                        print "result shape: ", np.shape(test_result_array)
-                        to_be_transformed = self.post_process(test_result_array)
-                        if epoch % output_epoch == 0:
-                            self.output_img(to_be_transformed, test_data.space, epoch)
-                        if epoch == 0:
-                            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
-                            mask_img.SetSpacing(test_data.space)
-                            ST.WriteImage(mask_img, './test_result/test_mask.vtk')
-                        test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
-                                np.sum(to_be_transformed) + np.sum(array_mask))
-                        test_summary = sess.run(test_merge_op, feed_dict={total_acc: test_IOU})
-                        sum_write_test.add_summary(test_summary, global_step=epoch)
-                        print "IOU accuracy: ", test_IOU
-                        time_end = time.time()
-                        print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
+                    if epoch % total_test_epoch == 0:
+                        self.full_testing(sess,X,w,threshold,
+                                          test_merge_op,
+                                          sum_write_test,training,
+                                          weight_for,total_acc,Y_pred,
+                                          Y_pred_modi,Y_pred_nosig,epoch)
+                        # print '********************** FULL TESTING ********************************'
+                        # time_begin = time.time()
+                        # origin_dir = read_dicoms(test_dir + "original1")
+                        # mask_dir = test_dir + "airway"
+                        # test_batch_size = batch_size
+                        # # test_data = tools.Test_data(dicom_dir,input_shape)
+                        # test_data = tools.Test_data(origin_dir, input_shape, 'vtk_data')
+                        # test_data.organize_blocks()
+                        # test_mask = read_dicoms(mask_dir)
+                        # array_mask = ST.GetArrayFromImage(test_mask)
+                        # array_mask = np.transpose(array_mask, (2, 1, 0))
+                        # print "mask shape: ", np.shape(array_mask)
+                        # block_numbers = test_data.blocks.keys()
+                        # for i in range(0, len(block_numbers), test_batch_size):
+                        #     batch_numbers = []
+                        #     if i + test_batch_size < len(block_numbers):
+                        #         temp_input = np.zeros(
+                        #             [test_batch_size, input_shape[0], input_shape[1], input_shape[2]])
+                        #         for j in range(test_batch_size):
+                        #             temp_num = block_numbers[i + j]
+                        #             temp_block = test_data.blocks[temp_num]
+                        #             batch_numbers.append(temp_num)
+                        #             block_array = temp_block.load_data()
+                        #             block_shape = np.shape(block_array)
+                        #             temp_input[j, 0:block_shape[0], 0:block_shape[1],
+                        #             0:block_shape[2]] += block_array
+                        #         Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run(
+                        #             [Y_pred, Y_pred_modi, Y_pred_nosig],
+                        #             feed_dict={X: temp_input,
+                        #                        training: False,
+                        #                        w: weight_for,
+                        #                        threshold: upper_threshold + test_extra_threshold})
+                        #         for j in range(test_batch_size):
+                        #             test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
+                        #     else:
+                        #         temp_batch_size = len(block_numbers) - i
+                        #         temp_input = np.zeros(
+                        #             [temp_batch_size, input_shape[0], input_shape[1], input_shape[2]])
+                        #         for j in range(temp_batch_size):
+                        #             temp_num = block_numbers[i + j]
+                        #             temp_block = test_data.blocks[temp_num]
+                        #             batch_numbers.append(temp_num)
+                        #             block_array = temp_block.load_data()
+                        #             block_shape = np.shape(block_array)
+                        #             temp_input[j, 0:block_shape[0], 0:block_shape[1],
+                        #             0:block_shape[2]] += block_array
+                        #         X_temp = tf.placeholder(
+                        #             shape=[temp_batch_size, input_shape[0], input_shape[1], input_shape[2]],
+                        #             dtype=tf.float32)
+                        #         with tf.variable_scope('generator', reuse=True):
+                        #             Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp = self.ae_u(X_temp, training,
+                        #                                                                          temp_batch_size,
+                        #                                                                          threshold)
+                        #         Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run(
+                        #             [Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp],
+                        #             feed_dict={X_temp: temp_input,
+                        #                        training: False,
+                        #                        w: weight_for,
+                        #                        threshold: upper_threshold + test_extra_threshold})
+                        #         for j in range(temp_batch_size):
+                        #             test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
+                        # test_result_array = test_data.get_result()
+                        # print "result shape: ", np.shape(test_result_array)
+                        # to_be_transformed = self.post_process(test_result_array)
+                        # if epoch % output_epoch == 0:
+                        #     self.output_img(to_be_transformed, test_data.space, epoch)
+                        # if epoch == 0:
+                        #     mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
+                        #     mask_img.SetSpacing(test_data.space)
+                        #     ST.WriteImage(mask_img, './test_result/test_mask.vtk')
+                        # test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
+                        #         np.sum(to_be_transformed) + np.sum(array_mask))
+                        # test_summary = sess.run(test_merge_op, feed_dict={total_acc: test_IOU})
+                        # sum_write_test.add_summary(test_summary, global_step=epoch)
+                        # print "IOU accuracy: ", test_IOU
+                        # time_end = time.time()
+                        # print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
                     data.shuffle_X_Y_pairs()
                     total_train_batch_num = data.total_train_batch_num
                     print "total_train_batch_num:", total_train_batch_num
@@ -421,6 +430,86 @@ class Network:
                 else:
                     print "bad data , next epoch", epoch
 
+    def full_testing(self,sess,X,w,threshold,test_merge_op,sum_write_test,training,weight_for,total_acc,Y_pred, Y_pred_modi, Y_pred_nosig,epoch):
+        print '********************** FULL TESTING ********************************'
+        # X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
+        # w = tf.placeholder(tf.float32)
+        # threshold = tf.placeholder(tf.float32)
+        time_begin = time.time()
+        origin_data = read_dicoms(test_dir + "original1")
+        mask_dir = test_dir + "airway"
+        test_batch_size = batch_size
+        # test_data = tools.Test_data(dicom_dir,input_shape)
+        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data')
+        test_data.organize_blocks()
+        test_mask = read_dicoms(mask_dir)
+        array_mask = ST.GetArrayFromImage(test_mask)
+        array_mask = np.transpose(array_mask, (2, 1, 0))
+        print "mask shape: ", np.shape(array_mask)
+        block_numbers = test_data.blocks.keys()
+        for i in range(0, len(block_numbers), test_batch_size):
+            batch_numbers = []
+            if i + test_batch_size < len(block_numbers):
+                temp_input = np.zeros(
+                    [test_batch_size, input_shape[0], input_shape[1], input_shape[2]])
+                for j in range(test_batch_size):
+                    temp_num = block_numbers[i + j]
+                    temp_block = test_data.blocks[temp_num]
+                    batch_numbers.append(temp_num)
+                    block_array = temp_block.load_data()
+                    block_shape = np.shape(block_array)
+                    temp_input[j, 0:block_shape[0], 0:block_shape[1],
+                    0:block_shape[2]] += block_array
+                Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run(
+                    [Y_pred, Y_pred_modi, Y_pred_nosig],
+                    feed_dict={X: temp_input,
+                               training: False,
+                               w: weight_for,
+                               threshold: upper_threshold + test_extra_threshold})
+                for j in range(test_batch_size):
+                    test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
+            else:
+                temp_batch_size = len(block_numbers) - i
+                temp_input = np.zeros(
+                    [temp_batch_size, input_shape[0], input_shape[1], input_shape[2]])
+                for j in range(temp_batch_size):
+                    temp_num = block_numbers[i + j]
+                    temp_block = test_data.blocks[temp_num]
+                    batch_numbers.append(temp_num)
+                    block_array = temp_block.load_data()
+                    block_shape = np.shape(block_array)
+                    temp_input[j, 0:block_shape[0], 0:block_shape[1],
+                    0:block_shape[2]] += block_array
+                X_temp = tf.placeholder(
+                    shape=[temp_batch_size, input_shape[0], input_shape[1], input_shape[2]],
+                    dtype=tf.float32)
+                with tf.variable_scope('generator', reuse=True):
+                    Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp = self.ae_u(X_temp, training,
+                                                                                 temp_batch_size,
+                                                                                 threshold)
+                Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run(
+                    [Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp],
+                    feed_dict={X_temp: temp_input,
+                               training: False,
+                               w: weight_for,
+                               threshold: upper_threshold + test_extra_threshold})
+                for j in range(temp_batch_size):
+                    test_data.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
+        test_result_array = test_data.get_result()
+        print "result shape: ", np.shape(test_result_array)
+        to_be_transformed = self.post_process(test_result_array)
+        if epoch == total_test_epoch:
+            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
+            mask_img.SetSpacing(test_data.space)
+            ST.WriteImage(mask_img, self.test_results_dir + 'test_mask.vtk')
+        test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
+                np.sum(to_be_transformed) + np.sum(array_mask))
+        test_summary = sess.run(test_merge_op, feed_dict={total_acc: test_IOU})
+        sum_write_test.add_summary(test_summary, global_step=epoch)
+        print "IOU accuracy: ", test_IOU
+        time_end = time.time()
+        print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
+
     def post_process(self,test_result_array):
         r_s = np.shape(test_result_array)  # result shape
         e_t = edge_thickness  # edge thickness
@@ -435,10 +524,10 @@ class Network:
         final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
         final_img.SetSpacing(spacing)
         print "writing full testing result"
-        if not os.path.exists("./test_result"):
-            os.makedirs("./test_result")
-        print './test_result/test_result' + str(epoch) + '.vtk'
-        ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
+        if not os.path.exists(self.test_results_dir):
+            os.makedirs(self.test_results_dir)
+        print self.test_results_dir + "test_result_" + str(epoch) + '.vtk'
+        ST.WriteImage(final_img, self.test_results_dir + "test_result_" + str(epoch) + '.vtk')
 
     def test(self,dicom_dir):
         # X = tf.placeholder(shape=[batch_size, input_shape[0], input_shape[1], input_shape[2]], dtype=tf.float32)
@@ -448,7 +537,7 @@ class Network:
         training = tf.placeholder(tf.bool)
         X = tf.placeholder(shape=[test_batch_size, test_input_shape[0], test_input_shape[1], test_input_shape[2]],
                            dtype=tf.float32)
-        with tf.variable_scope('ae'):
+        with tf.variable_scope('generator'):
             Y_pred, Y_pred_modi, Y_pred_nosig = self.ae_u(X, training, test_batch_size, threshold)
 
         print tools.Ops.variable_count()
@@ -502,7 +591,7 @@ class Network:
                     X_temp = tf.placeholder(
                         shape=[temp_batch_size, input_shape[0], input_shape[1], input_shape[2]],
                         dtype=tf.float32)
-                    with tf.variable_scope('ae', reuse=True):
+                    with tf.variable_scope('generator', reuse=True):
                         Y_pred_temp, Y_pred_modi_temp, Y_pred_nosig_temp = self.ae_u(X_temp, training,
                                                                                      temp_batch_size, threshold)
                     Y_temp_pred, Y_temp_modi, Y_temp_pred_nosig = sess.run(
@@ -534,5 +623,5 @@ if __name__ == "__main__":
     dicom_dir = "./FU_LI_JUN/original1"
     net = Network()
     net.train(config)
-    final_img = net.test(dicom_dir)
+    # final_img = net.test(dicom_dir)
     # ST.WriteImage(final_img,'./final_result.vtk')
