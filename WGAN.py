@@ -458,7 +458,7 @@ class Network:
         # threshold = tf.placeholder(tf.float32)
         time_begin = time.time()
         origin_data = read_dicoms(test_dir + "original1")
-        mask_dir = test_dir + "airway"
+        mask_dir = test_dir + "artery"
         test_batch_size = batch_size
         # test_data = tools.Test_data(dicom_dir,input_shape)
         test_data = tools.Test_data(origin_data, input_shape, 'vtk_data')
