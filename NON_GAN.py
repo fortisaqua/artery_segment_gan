@@ -15,12 +15,12 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
-ori_lr = 0.0002
+ori_lr = 0.002
 power = 0.9
 # GPU0 = '1'
 # [artery , airway , background]
 mask_names = ["artery","airway","background"]
-weights = [0.7,0.2,0.1]
+weights = [10,0.1,0.1]
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 epoch_walked = 0
@@ -35,7 +35,7 @@ model_save_step = 50
 output_epoch = total_test_epoch * 10
 edge_thickness = 20
 original_g = 24
-growth_d = 24
+growth_d = 32
 layer_num_d = 4
 mask_type = 0
 test_dir = './FU_LI_JUN/'
@@ -43,8 +43,8 @@ config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_multi_class.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 3
-config['train_amount'] = 6
+config['test_amount'] = 2
+config['train_amount'] = 8
 config['max_epoch'] = MAX_EPOCH
 config['mask_names'] = mask_names[:-1]
 config['full_zero_num'] = 1
@@ -308,13 +308,13 @@ class Network:
                             print "epoch:", epoch, " i: ", i, " , training loss : ", loss_val, " , learning rate : ",learning_rate
 
                         # block test
-                        if i % block_test_step == 0 and i > 0:
+                        if i % block_test_step == 0:
                             X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
                             loss_val,artery_acc_val,airway_acc_val,background_acc_val,train_summay, predic_label\
                                 = sess.run([mean_enhanced_loss,accuracys[0],accuracys[1],accuracys[2],train_merge_op,argmax_label],
                                            feed_dict={X:X_test_batch,Y:Y_test_batch,training:False})
-                            if i == block_test_step:
-                                ST.WriteImage(np.uint8(np.transpose(predic_label[0,:,:,:],[2,1,0])),self.test_results_dir+"epoch_"+str(epoch)+".vtk")
+                            # if i == block_test_step and i > 0 and epoch % (output_epoch / 2) ==0:
+                            #     ST.WriteImage(ST.GetImageFromArray(np.int16(np.transpose(predic_label[0,:,:,:],[2,1,0]))),self.test_results_dir+"epoch_"+str(epoch)+".vtk")
                             print "epoch:", epoch, " global step: ", global_step
                             print "artery accuracy : ",artery_acc_val, "airway accuracy : ",airway_acc_val
                             sum_writer_train.add_summary(train_summay,global_step=global_step)
