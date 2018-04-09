@@ -18,8 +18,8 @@ batch_size = 2
 ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
-input_shape = [256,256,8]
-output_shape = [256,256,8]
+input_shape = [48,48,128]
+output_shape = [48,48,128]
 epoch_walked = 0
 step_walked = 0
 upper_threshold = 0.6
@@ -41,7 +41,7 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 12
+config['train_amount'] = 10
 decay_step =  38 / (config['train_amount'] / 2)
 ################################################################
 
