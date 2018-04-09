@@ -13,7 +13,7 @@ import gc
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
 ori_lr = 0.0001
 power = 0.9
@@ -33,16 +33,16 @@ output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 20
 original_g = 24
-growth_d = 16
-layer_num_d = 3
+growth_d = 24
+layer_num_d = 4
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_artery.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 11
-decay_step = 2 * 16 / (config['train_amount'] - 1)
+config['train_amount'] = 8
+decay_step = 16 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
@@ -83,15 +83,19 @@ class Network:
                 c_e.append(original + growth * (i + 1))
                 s_e.append(1)
             for j in range(depth):
-                layer = tools.Ops.batch_norm(layers[-1], 'bn_dense_1_1_' + str(j), training=training)
-                layer = tools.Ops.xxlu(layer, name='relu_1')
-                layer = tools.Ops.conv3d(layer, k=1, out_c=growth, str=s_e[j], name='dense_1_1_' + str(j))
-                layer = tools.Ops.batch_norm(layer, 'bn_dense_1_2_' + str(j), training=training)
-                layer = tools.Ops.xxlu(layer, name='relu_2')
-                layer = tools.Ops.conv3d(layer, k=3, out_c=growth, str=s_e[j], name='dense_1_2_' + str(j))
-                next_input = tf.concat([layer, layers[-1]], axis=4)
-                layers.append(next_input)
-        return layers[-1]
+                with tf.variable_scope("input_"+str(j+1)):
+                    input = tf.concat([sub_layer for sub_layer in layers], axis=4)
+                with tf.variable_scope("dense_layer_"+str(j+1)):
+                    layer = tools.Ops.batch_norm(input, 'bn_dense_1_1_' + str(j+1), training=training)
+                    layer = tools.Ops.xxlu(layer, name='relu_1')
+                    layer = tools.Ops.conv3d(layer, k=1, out_c=growth, str=s_e[j], name='dense_1_1_' + str(j+1))
+                    layer = tools.Ops.batch_norm(layer, 'bn_dense_1_2_' + str(j), training=training)
+                    layer = tools.Ops.xxlu(layer, name='relu_2')
+                    layer = tools.Ops.conv3d(layer, k=3, out_c=growth, str=s_e[j], name='dense_1_2_' + str(j+1))
+                layers.append(layer)
+            with tf.variable_scope("out_put"):
+                ret = tf.concat([sub_layer for sub_layer in layers], axis=4)
+        return ret
 
     def Down_Sample(self,X,name,str,training,size):
         with tf.variable_scope(name):
@@ -454,7 +458,7 @@ class Network:
         # threshold = tf.placeholder(tf.float32)
         time_begin = time.time()
         origin_data = read_dicoms(test_dir + "original1")
-        mask_dir = test_dir + "airway"
+        mask_dir = test_dir + "artery"
         test_batch_size = batch_size
         # test_data = tools.Test_data(dicom_dir,input_shape)
         test_data = tools.Test_data(origin_data, input_shape, 'vtk_data')

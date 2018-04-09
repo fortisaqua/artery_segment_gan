@@ -13,19 +13,19 @@ import gc
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
-ori_lr = 0.0002
+ori_lr = 0.01
 power = 0.9
 # GPU0 = '1'
 # [artery , airway , background]
 mask_names = ["artery","airway","background"]
-weights = [0.7,0.2,0.1]
+weights = [2,1,1]
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 epoch_walked = 0
 step_walked = 0
-MAX_EPOCH = 20
+MAX_EPOCH = 2000
 class_num = 3
 re_example_epoch = 2
 total_test_epoch = 1
@@ -33,20 +33,23 @@ show_step = 10
 block_test_step = 20
 model_save_step = 50
 output_epoch = total_test_epoch * 10
-edge_thickness = 15
+edge_thickness = 20
+original_g = 24
+growth_d = 16
+layer_num_d = 4
 mask_type = 0
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_multi_class.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 3
-config['train_amount'] = 6
+config['test_amount'] = 2
+config['train_amount'] = 8
 config['max_epoch'] = MAX_EPOCH
 config['mask_names'] = mask_names[:-1]
 config['full_zero_num'] = 1
 config['class_num'] = class_num
-decay_step = 2 * 19 / (config['train_amount'] - 1)
+decay_step = 2 * 16 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
@@ -87,15 +90,19 @@ class Network:
                 c_e.append(original + growth * (i + 1))
                 s_e.append(1)
             for j in range(depth):
-                layer = tools.Ops.batch_norm(layers[-1], 'bn_dense_1_1_' + str(j), training=training)
-                layer = tools.Ops.xxlu(layer, name='relu_1')
-                layer = tools.Ops.conv3d(layer, k=1, out_c=growth, str=s_e[j], name='dense_1_1_' + str(j))
-                layer = tools.Ops.batch_norm(layer, 'bn_dense_1_2_' + str(j), training=training)
-                layer = tools.Ops.xxlu(layer, name='relu_2')
-                layer = tools.Ops.conv3d(layer, k=3, out_c=growth, str=s_e[j], name='dense_1_2_' + str(j))
-                next_input = tf.concat([layer, layers[-1]], axis=4)
-                layers.append(next_input)
-        return layers[-1]
+                with tf.variable_scope("input_"+str(j+1)):
+                    input = tf.concat([sub_layer for sub_layer in layers], axis=4)
+                with tf.variable_scope("dense_layer_"+str(j+1)):
+                    layer = tools.Ops.batch_norm(input, 'bn_dense_1_1_' + str(j+1), training=training)
+                    layer = tools.Ops.xxlu(layer, name='relu_1')
+                    layer = tools.Ops.conv3d(layer, k=1, out_c=growth, str=s_e[j], name='dense_1_1_' + str(j+1))
+                    layer = tools.Ops.batch_norm(layer, 'bn_dense_1_2_' + str(j), training=training)
+                    layer = tools.Ops.xxlu(layer, name='relu_2')
+                    layer = tools.Ops.conv3d(layer, k=3, out_c=growth, str=s_e[j], name='dense_1_2_' + str(j+1))
+                layers.append(layer)
+            with tf.variable_scope("out_put"):
+                ret = tf.concat([sub_layer for sub_layer in layers], axis=4)
+        return ret
 
     def Down_Sample(self,X,name,str,training,size):
         with tf.variable_scope(name):
@@ -156,32 +163,49 @@ class Network:
         return concat_conv
 
     def Segmentor(self,X,training,batch_size):
-        original = 16
-        growth = 12
-        dense_layer_num = 6
+        original = original_g
+        growth = growth_d
+        dense_layer_num = layer_num_d
         X_input = self.Input(X, "input", batch_size, original, training)
-        down_1 = self.Down_Sample(X_input, "down_sample_1", 2, training, original)
+        down_1 = self.Down_Sample(X_input, "down_sample_1", 2, training, original * 1)
         dense_1 = self.Dense_Block(down_1, "dense_block_1", dense_layer_num, growth, training)
         down_2 = self.Down_Sample(dense_1, "down_sample_2", 2, training, original * 2)
-
         dense_2 = self.Dense_Block(down_2, "dense_block_2", dense_layer_num, growth, training)
+        down_3 = self.Down_Sample(dense_2, "down_sample_3", 2, training, original * 4)
 
-        up_input_1 = self.Concat([down_2, dense_2,
-                                  self.Down_Sample(dense_1, "cross_1", 2, training, original),
-                                  self.Down_Sample(X_input, "cross_2", 4, training, original)], axis=4,
-                                 size=original * 3, name="concat_up_1")
-        up_1 = self.Up_Sample(up_input_1, "up_sample_1", 2, training, original * 2)
+        dense_3 = self.Dense_Block(down_3, "dense_block_3", dense_layer_num, growth, training)
+        mid_input = self.Concat([dense_3,
+                                 self.Down_Sample(dense_2, "cross_1", 2, training, original),
+                                 self.Down_Sample(dense_1, "cross_2", 4, training, original),
+                                 self.Down_Sample(X_input, "cross_3", 8, training, original),
+                                 ],
+                                axis=4, size=original * 6, name="concat_up_mid")
+        dense_4 = self.Dense_Block(mid_input, "dense_block_4", dense_layer_num, growth, training)
 
-        dense_input_3 = self.Concat([up_1, dense_1], axis=4, size=original * 2, name="concat_dense_3")
-        dense_3 = self.Dense_Block(dense_input_3, "dense_block_3", dense_layer_num, growth, training)
+        up_input_1 = self.Concat([down_3, dense_4], axis=4, size=original * 8, name="up_input_1")
+        up_1 = self.Up_Sample(up_input_1, "up_sample_1", 2, training, original * 4)
 
-        up_input_2 = self.Concat([dense_3, down_1], axis=4, size=original, name="concat_up_2")
-        up_2 = self.Up_Sample(up_input_2, "up_sample_2", 2, training, original)
+        dense_input_5 = self.Concat([up_1, dense_2], axis=4, size=original * 4, name="dense_input_5")
+        dense_5 = self.Dense_Block(dense_input_5, "dense_block_5", dense_layer_num, growth, training)
 
-        predict_input = self.Concat([up_2, X_input,
-                                     self.Up_Sample(up_input_1, "cross_3", 4, training, original),
-                                     self.Up_Sample(dense_input_3, "cross_4", 2, training, original),
-                                     self.Up_Sample(dense_3, "cross_5", 2, training, original)], axis=4,
+        up_input_2 = self.Concat([dense_5, down_2], axis=4, size=original * 6, name="up_input_2")
+        up_2 = self.Up_Sample(up_input_2, "up_sample_2", 2, training, original * 2)
+
+        dense_input_6 = self.Concat([up_2, dense_1], axis=4, size=original * 2, name="dense_input_6")
+        dense_6 = self.Dense_Block(dense_input_6, "dense_block_6", dense_layer_num, growth, training)
+
+        up_input_3 = self.Concat([dense_6, down_1], axis=4, size=original * 6, name="up_input_3")
+        up_3 = self.Up_Sample(up_input_3, "up_sample_3", 2, training, original * 1)
+
+        predict_input = self.Concat([up_3,
+                                     self.Up_Sample(dense_6, "cross_4", 2, training, original),
+                                     self.Up_Sample(up_2, "cross_5", 2, training, original),
+                                     self.Up_Sample(dense_5, "cross_6", 4, training, original),
+                                     self.Up_Sample(up_1, "cross_7", 4, training, original),
+                                     self.Up_Sample(dense_4, "cross_8", 8, training, original),
+                                     self.Up_Sample(mid_input, "cross_9", 8, training, original),
+                                     self.Up_Sample(dense_3, "cross_10", 8, training, original)],
+                                    axis=4,
                                     size=original * 4, name="predict_input")
 
         return self.Pixel_Classifier(predict_input,"segment",training,class_num)
@@ -224,7 +248,7 @@ class Network:
         for i in range(class_num):
             temp_pred = tf.cast(pred_masks[i],tf.float32)
             temp_mask = tf.cast(Y[:,:,:,:,i],tf.float32)
-            accuracys.append(2*tf.reduce_sum(temp_pred*temp_mask)/tf.reduce_sum((temp_pred+temp_mask)))
+            accuracys.append(2*tf.reduce_sum(tf.abs(temp_pred)*tf.abs(temp_mask))/tf.reduce_sum((tf.abs(temp_pred)+tf.abs(temp_mask))))
         # [artery , airway , background]
         self.total_acc = tf.placeholder(tf.float32)
         artery_acc_sum = tf.summary.scalar("artery_accuracy",accuracys[0])
@@ -284,13 +308,13 @@ class Network:
                             print "epoch:", epoch, " i: ", i, " , training loss : ", loss_val, " , learning rate : ",learning_rate
 
                         # block test
-                        if i % block_test_step == 0 and i > 0:
+                        if i % block_test_step == 0:
                             X_test_batch, Y_test_batch = data.load_X_Y_voxel_test_next_batch(fix_sample=False)
                             loss_val,artery_acc_val,airway_acc_val,background_acc_val,train_summay, predic_label\
                                 = sess.run([mean_enhanced_loss,accuracys[0],accuracys[1],accuracys[2],train_merge_op,argmax_label],
                                            feed_dict={X:X_test_batch,Y:Y_test_batch,training:False})
-                            if i == block_test_step:
-                                ST.WriteImage(np.uint8(np.transpose(predic_label[0,:,:,:],[2,1,0])),self.test_results_dir+"epoch_"+str(epoch)+".vtk")
+                            # if i == block_test_step and i > 0 and epoch % (output_epoch / 2) ==0:
+                            #     ST.WriteImage(ST.GetImageFromArray(np.int16(np.transpose(predic_label[0,:,:,:],[2,1,0]))),self.test_results_dir+"epoch_"+str(epoch)+".vtk")
                             print "epoch:", epoch, " global step: ", global_step
                             print "artery accuracy : ",artery_acc_val, "airway accuracy : ",airway_acc_val
                             sum_writer_train.add_summary(train_summay,global_step=global_step)
@@ -385,10 +409,10 @@ class Network:
         final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
         final_img.SetSpacing(spacing)
         print "writing full testing result"
-        if not os.path.exists("./test_result"):
-            os.makedirs("./test_result")
-        print './test_result/test_result' + str(epoch) + '.vtk'
-        ST.WriteImage(final_img, './test_result/test_result' + str(epoch) + '.vtk')
+        if not os.path.exists(self.test_results_dir):
+            os.makedirs(self.test_results_dir)
+        print self.test_results_dir + "test_result_" + str(epoch) + '.vtk'
+        ST.WriteImage(final_img, self.test_results_dir + "test_result_" + str(epoch) + '.vtk')
 
 
 if __name__ == "__main__":
