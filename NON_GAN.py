@@ -15,12 +15,12 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
-ori_lr = 0.002
+ori_lr = 0.01
 power = 0.9
 # GPU0 = '1'
 # [artery , airway , background]
 mask_names = ["artery","airway","background"]
-weights = [10,0.1,0.1]
+weights = [2,1,1]
 input_shape = [64,64,128]
 output_shape = [64,64,128]
 epoch_walked = 0
