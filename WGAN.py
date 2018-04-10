@@ -20,8 +20,8 @@ power = 0.9
 # GPU0 = '1'
 input_shape = [256,256,8]
 output_shape = [256,256,8]
-epoch_walked = 0
-step_walked = 0
+epoch_walked = 37
+step_walked = 18100
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -519,6 +519,8 @@ class Network:
         test_result_array = test_data.get_result()
         print "result shape: ", np.shape(test_result_array)
         to_be_transformed = self.post_process(test_result_array)
+        if epoch % output_epoch == 0:
+            self.output_img(to_be_transformed, test_data.space, epoch)
         if epoch == total_test_epoch:
             mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
             mask_img.SetSpacing(test_data.space)
