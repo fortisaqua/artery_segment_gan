@@ -18,8 +18,8 @@ batch_size = 2
 ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
-input_shape = [128,32,128]
-output_shape = [128,32,128]
+input_shape = [128,16,128]
+output_shape = [128,16,128]
 epoch_walked = 0
 step_walked = 0
 upper_threshold = 0.6
@@ -33,7 +33,7 @@ output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 20
 original_g = 24
-growth_d = 16
+growth_d = 24
 layer_num_d = 4
 test_dir = './FU_LI_JUN/'
 config={}
@@ -152,14 +152,14 @@ class Network:
         dense_2 = self.Dense_Block(down_2, "dense_block_2", dense_layer_num, growth, training)
         down_3 = self.Down_Sample(dense_2, "down_sample_3", 2, training, original * 4)
 
-        dense_3 = self.Dense_Block(down_3, "dense_block_3", dense_layer_num / 2, growth, training)
+        dense_3 = self.Dense_Block(down_3, "dense_block_3", dense_layer_num, growth, training)
         mid_input = self.Concat([dense_3,
                                  self.Down_Sample(dense_2, "cross_1", 2, training, original),
                                  self.Down_Sample(dense_1, "cross_2", 4, training, original),
                                  self.Down_Sample(X_input, "cross_3", 8, training, original),
                                  ],
                                 axis=4, size=original * 6, name="concat_up_mid")
-        dense_4 = self.Dense_Block(mid_input, "dense_block_4", dense_layer_num * 3 / 2, growth, training)
+        dense_4 = self.Dense_Block(mid_input, "dense_block_4", dense_layer_num, growth, training)
 
         up_input_1 = self.Concat([down_3, dense_4], axis=4, size=original * 8, name="up_input_1")
         up_1 = self.Up_Sample(up_input_1, "up_sample_1", 2, training, original * 4)
