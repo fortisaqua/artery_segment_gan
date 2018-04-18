@@ -14,14 +14,14 @@ import gc
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-batch_size = 2
+batch_size = 4
 ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
 input_shape = [256,256,8]
 output_shape = [256,256,8]
-epoch_walked = 150
-step_walked = 80840
+epoch_walked = 0
+step_walked = 0
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -32,9 +32,9 @@ model_save_step = 50
 output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 20
-original_g = 24
-growth_d = 24
-layer_num_d = 4
+original_g = 16
+growth_d = 4
+layer_num_d = 8
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
@@ -48,9 +48,9 @@ decay_step = 16 / (config['train_amount'] / 2)
 class Network:
     def __init__(self):
         self.train_models_dir = './artery_train_models/'
-        self.train_sum_dir = './artery_sum/train/'
+        self.train_sum_dir = './artery_sum/mini_model/train/'
         self.test_results_dir = './artery_test_results/'
-        self.test_sum_dir = './artery_sum/test/'
+        self.test_sum_dir = './artery_sum/mini_model/test/'
 
         if os.path.exists(self.test_results_dir):
             shutil.rmtree(self.test_results_dir)

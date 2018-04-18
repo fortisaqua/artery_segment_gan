@@ -13,8 +13,8 @@ import utils as ut
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-batch_size = 1
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+batch_size = 2
 # GPU0 = '1'
 input_shape = [256,256,8]
 output_shape = [256,256,8]
@@ -31,7 +31,6 @@ edge_thickness = 20
 original_g = 24
 growth_d = 24
 layer_num_d = 4
-test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_artery.pkl'
@@ -286,9 +285,13 @@ class Network:
             ST.WriteImage(final_img, self.test_results_dir+'test_result_final.vtk')
             return final_img
 
-if __name__ == "__main__":
-    dicom_dir = "./FU_LI_JUN/original1"
-    net = Network()
+# if __name__ == "__main__":
+#     dicom_dir = "./FU_LI_JUN/original1"
+#     net = Network()
     # net.train(config)
-    net.test(dicom_dir)
+    # net.test(dicom_dir)
     # ST.WriteImage(final_img,'./final_result.vtk')
+
+def artery_seg(dicom_dir):
+    net = Network()
+    net.test(dicom_dir)
