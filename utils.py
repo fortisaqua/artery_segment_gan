@@ -193,3 +193,87 @@ def out_put_data_pairs(data_pairs):
     pickle_writer = open('./data_meta.pkl','wb')
     pickle.dump(data_meta,pickle_writer)
     pickle_writer.close()
+
+def Select_biggest(image):
+    image_array = image
+    s = image_array.sum()
+    flag = np.zeros((image_array.shape[0], image_array.shape[1], image_array.shape[2]), np.bool)
+
+    def cal_sum(i, j, k):
+        ss = 255
+        flag[i][j][k] = True
+        p = []
+        p.append((i, j, k))
+        while (len(p)):
+            now = p.pop(0)
+            x = now[0]
+            y = now[1]
+            z = now[2]
+            for xx in range(-1, 2):
+                for yy in range(-1, 2):
+                    for zz in range(-1, 2):
+                        if (xx == 0) and (yy == 0) and (zz == 0):
+                            continue
+                        if flag[x + xx][y + yy][z + zz] == True:
+                            continue
+                        if x + xx < 0:
+                            continue
+                        if x + xx >= image_array.shape[0]:
+                            continue
+                        if y + yy < 0:
+                            continue
+                        if y + yy >= image_array.shape[1]:
+                            continue
+                        if z + zz < 0:
+                            continue
+                        if z + zz >= image_array.shape[2]:
+                            continue
+                        if image_array[x + xx][y + yy][z + zz] == 255.0:
+                            p.append((x + xx, y + yy, z + zz))
+                            flag[x + xx][y + yy][z + zz] = True
+                            ss = ss + 255
+        return ss
+
+    def delete(i, j, k):
+        f = np.zeros((image_array.shape[0], image_array.shape[1], image_array.shape[2]), np.bool)
+        f[i][j][k] = True
+        image_array[i][j][k] = 0
+        p = []
+        p.append((i, j, k))
+        while (len(p)):
+            now = p.pop(0)
+            x = now[0]
+            y = now[1]
+            z = now[2]
+            for xx in range(-1, 2):
+                for yy in range(-1, 2):
+                    for zz in range(-1, 2):
+                        if (x + xx == 0) and (y + yy == 0) and (z + zz == 0):
+                            continue
+                        if f[x + xx][y + yy][z + zz] == True:
+                            continue
+                        if x + xx < 0:
+                            continue
+                        if x + xx >= image_array.shape[0]:
+                            continue
+                        if y + yy < 0:
+                            continue
+                        if y + yy >= image_array.shape[1]:
+                            continue
+                        if z + zz < 0:
+                            continue
+                        if z + zz >= image_array.shape[2]:
+                            continue
+                        if image_array[x + xx][y + yy][z + zz] == 255.0:
+                            p.append((x + xx, y + yy, z + zz))
+                            f[x + xx][y + yy][z + zz] = True
+                            image_array[x + xx][y + yy][z + zz] = 0
+
+    for i in range(0, image_array.shape[0]):
+        for j in range(0, image_array.shape[1]):
+            for k in range(0, image_array.shape[2]):
+                if (image_array[i][j][k] == 255.0 and flag[i][j][k] == False):
+                    s_temp = cal_sum(i, j, k)
+                    if s_temp * 2 < s:
+                        delete(i, j, k)
+    return image_array
