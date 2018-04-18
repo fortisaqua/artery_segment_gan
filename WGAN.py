@@ -13,15 +13,15 @@ import gc
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 batch_size = 2
 ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
 input_shape = [256,256,8]
 output_shape = [256,256,8]
-epoch_walked = 37
-step_walked = 18100
+epoch_walked = 150
+step_walked = 80840
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
