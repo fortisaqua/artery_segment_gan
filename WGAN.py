@@ -32,9 +32,9 @@ model_save_step = 50
 output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 20
-original_g = 8
-growth_d = 4
-layer_num_d = 8
+original_g = 24
+growth_d = 24
+layer_num_d = 4
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
@@ -48,9 +48,9 @@ decay_step = 16 / (config['train_amount'] / 2)
 class Network:
     def __init__(self):
         self.train_models_dir = './artery_train_models/'
-        self.train_sum_dir = './artery_sum/mini_model/train/'
+        self.train_sum_dir = './artery_sum/train/'
         self.test_results_dir = './artery_test_results/'
-        self.test_sum_dir = './artery_sum/mini_model/test/'
+        self.test_sum_dir = './artery_sum/test/'
 
         if os.path.exists(self.test_results_dir):
             shutil.rmtree(self.test_results_dir)
