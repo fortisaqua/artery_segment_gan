@@ -13,15 +13,15 @@ import gc
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
 ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 69
-step_walked = 43050
+epoch_walked = 0
+step_walked = 0
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -38,11 +38,11 @@ layer_num_d = 4
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
-config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
+config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 10
-decay_step =  38 / (config['train_amount'] / 2)
+decay_step =  54 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
@@ -567,5 +567,5 @@ if __name__ == "__main__":
     dicom_dir = "./FU_LI_JUN/original1"
     net = Network()
     net.train(config)
-    # final_img = net.test(dicom_dir)
-    # ST.WriteImage(final_img,'./final_result.vtk')
+    final_img = net.test(dicom_dir)
+    ST.WriteImage(final_img,'./final_result.vtk')
