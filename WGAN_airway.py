@@ -444,7 +444,7 @@ class Network:
         if epoch % output_epoch == 0:
             self.output_img(to_be_transformed, test_data.space, epoch)
         if epoch == total_test_epoch:
-            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
+            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0])*255)
             mask_img.SetSpacing(test_data.space)
             ST.WriteImage(mask_img, self.test_results_dir + 'test_mask.vtk')
         test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
