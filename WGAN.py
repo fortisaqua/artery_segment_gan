@@ -566,7 +566,7 @@ class Network:
             return final_img
 
 if __name__ == "__main__":
-    dicom_dir = "./FU_LI_JUN/original1"
+    dicom_dir = "./WU_XIAO_YING/original1"
     net = Network()
     # net.train(config)
     final_img = net.test(dicom_dir)

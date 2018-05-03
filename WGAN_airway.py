@@ -34,14 +34,14 @@ edge_thickness = 20
 original_g = 24
 growth_d = 24
 layer_num_d = 4
-test_dir = './FU_LI_JUN/'
+test_dir = './case13/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 8
-decay_step = 46 / (config['train_amount'] / 2)
+decay_step = 45 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
