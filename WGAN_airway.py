@@ -242,7 +242,7 @@ class Network:
                                   maxval=1.0)
         Y_pred_ = tf.reshape(Y_pred, shape=[batch_size, -1])
         differences_ = Y_pred_ - Y_
-        interpolates = Y_ + alpha * differences_
+        interpolates = alpha *  Y_ + (1-alpha) * Y_pred_
         with tf.variable_scope('discriminator', reuse=True):
             XY_fake_intep = self.dis(X, interpolates, training)
         gradients = tf.gradients(XY_fake_intep, [interpolates])[0]
