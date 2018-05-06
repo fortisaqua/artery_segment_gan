@@ -301,7 +301,7 @@ class Network:
                 if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and data.total_train_batch_num > 0 and data.total_test_seq_batch > 0:
                     # actual foreground weight
                     weight_for = 0.5 + (1-1.0*epoch/MAX_EPOCH)*0.35
-                    if epoch % total_test_epoch == 0:
+                    if epoch % total_test_epoch == 0 and epoch > 0:
                         self.full_testing(sess,X,w,threshold,
                                           test_merge_op,
                                           sum_write_test,training,
