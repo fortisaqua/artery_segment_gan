@@ -30,11 +30,11 @@ block_test_step = 20
 model_save_step = 50
 output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
-edge_thickness = 20
+edge_thickness = 10
 original_g = 24
-growth_d = 24
-layer_num_d = 4
-test_dir = './case13/'
+growth_d = 16
+layer_num_d = 6
+test_dir = './WU_XIAO_YING/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
@@ -242,7 +242,7 @@ class Network:
                                   maxval=1.0)
         Y_pred_ = tf.reshape(Y_pred, shape=[batch_size, -1])
         differences_ = Y_pred_ - Y_
-        interpolates = alpha *  Y_ + (1-alpha) * Y_pred_
+        interpolates = Y_ + alpha * differences_
         with tf.variable_scope('discriminator', reuse=True):
             XY_fake_intep = self.dis(X, interpolates, training)
         gradients = tf.gradients(XY_fake_intep, [interpolates])[0]
@@ -565,7 +565,7 @@ class Network:
             return final_img
 
 if __name__ == "__main__":
-    dicom_dir = "./FU_LI_JUN/original1"
+    dicom_dir = "./WU_XIAO_YING/original1"
     net = Network()
     net.train(config)
     # final_img = net.test(dicom_dir)
