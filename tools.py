@@ -26,9 +26,9 @@ class Data_block:
 class Test_data():
     # load data and translate to original array
     def __init__(self,data,block_shape,type):
-        if type == 'dicom_data':
+        if 'dicom_data' in type:
             self.img = read_dicoms(data)
-        elif type == 'vtk_data':
+        elif 'vtk_data' in type:
             self.img = data
         self.space = self.img.GetSpacing()
         self.image_array = ST.GetArrayFromImage(self.img)
