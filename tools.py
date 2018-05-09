@@ -39,6 +39,7 @@ class Test_data():
         self.block_shape=block_shape
         self.blocks=dict()
         self.results=dict()
+        self.output_origin()
 
     def output_origin(self):
         if not os.path.exists("./temp_output"):
