@@ -383,7 +383,7 @@ class Network:
         mask_dir = test_dir + "airway"
         test_batch_size = batch_size
         # test_data = tools.Test_data(dicom_dir,input_shape)
-        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data')
+        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data_airway')
         test_data.organize_blocks()
         test_mask = read_dicoms(mask_dir)
         array_mask = ST.GetArrayFromImage(test_mask)
