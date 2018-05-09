@@ -35,7 +35,7 @@ class Test_data():
         self.image_array = np.transpose(self.image_array,[2,1,0])
         self.image_shape = np.shape(self.image_array)
         if "airway" in type:
-            self.image_array = np.int16(self.image_shape < 0) * self.image_shape
+            self.image_array = np.int16(self.image_array < 0) * self.image_array
         self.block_shape=block_shape
         self.blocks=dict()
         self.results=dict()
