@@ -39,12 +39,12 @@ class Test_data():
         self.block_shape=block_shape
         self.blocks=dict()
         self.results=dict()
-        self.output_origin()
+        # self.output_origin()
 
-    def output_origin(self):
-        if not os.path.exists("./temp_output"):
-            os.mkdir("./temp_output")
-        ST.WriteImage(ST.GetImageFromArray(np.transpose(self.image_array,[2,1,0])),"./temp_output/original.vtk")
+    def output_origin(self,output_dir):
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
+        ST.WriteImage(ST.GetImageFromArray(np.transpose(self.image_array,[2,1,0])),output_dir+"original.vtk")
 
     # do the simple threshold function
     def threshold(self,low,high):

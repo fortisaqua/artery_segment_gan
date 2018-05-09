@@ -384,6 +384,8 @@ class Network:
         test_batch_size = batch_size
         # test_data = tools.Test_data(dicom_dir,input_shape)
         test_data = tools.Test_data(origin_data, input_shape, 'vtk_data_airway')
+        if epoch == 0 :
+            test_data.output_origin(self.test_results_dir)
         test_data.organize_blocks()
         test_mask = read_dicoms(mask_dir)
         array_mask = ST.GetArrayFromImage(test_mask)
