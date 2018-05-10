@@ -37,7 +37,7 @@ layer_num_d = 8
 test_dir = './WU_XIAO_YING/'
 config={}
 config['batch_size'] = batch_size
-config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
+config['meta_path'] = '/opt/artery_extraction/data_meta_airway_200.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 8
@@ -503,7 +503,7 @@ class Network:
                 saver.restore(sess, self.train_models_dir + 'model.cptk')
             else:
                 sess.run(tf.global_variables_initializer())
-            test_data = tools.Test_data(dicom_dir, input_shape, 'dicom_data')
+            test_data = tools.Test_data(dicom_dir, input_shape, 'dicom_data_final')
             test_data.organize_blocks()
             block_numbers = test_data.blocks.keys()
             for i in range(0, len(block_numbers), test_batch_size):
