@@ -38,12 +38,16 @@ class Test_data():
             self.image_array = np.int16(self.image_array < 0) * self.image_array
         self.block_shape=block_shape
         self.steps = block_shape
+        # print self.steps
+        # print self.block_shape
         self.steps[2] = self.steps[2]/2
         if "final" in type:
             self.steps[0] = self.steps[0] / 2
             self.steps[1] = self.steps[1] / 2
         self.blocks=dict()
         self.results=dict()
+        print self.steps
+        print self.block_shape
         # self.output_origin()
 
     def output_origin(self,output_dir):
@@ -62,7 +66,7 @@ class Test_data():
         print 'data shape: ', original_shape
         for i in range(0,original_shape[0],self.steps[0]):
             for j in range(0,original_shape[1],self.steps[1]):
-                for k in range(0,original_shape[2],self.steps[2]/2):
+                for k in range(0,original_shape[2],self.steps[2]):
                     if i<original_shape[0] and j<original_shape[1] and k<original_shape[2]:
                         block_array = self.image_array[i:i+self.block_shape[0],j:j+self.block_shape[1],k:k+self.block_shape[2]]
                         block_shape = np.shape(block_array)
