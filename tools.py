@@ -37,7 +37,9 @@ class Test_data():
         if "airway" in type:
             self.image_array = np.int16(self.image_array < 0) * self.image_array
         self.block_shape=block_shape
-        self.steps = block_shape
+        self.steps = list()
+        for i in range(len(block_shape)):
+            self.steps.append(block_shape[i])
         # print self.steps
         # print self.block_shape
         self.steps[2] = self.steps[2]/2
