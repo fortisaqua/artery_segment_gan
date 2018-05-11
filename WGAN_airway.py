@@ -14,7 +14,7 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 batch_size = 2
-ori_lr = 0.0001
+ori_lr = 0.001
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
@@ -31,10 +31,10 @@ model_save_step = 50
 output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 10
-original_g = 16
-growth_d = 12
-layer_num_d = 12
-test_dir = './XIONG_YAO/'
+original_g = 24
+growth_d = 24
+layer_num_d = 2
+test_dir = './case11/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway_200.pkl'
@@ -158,19 +158,19 @@ class Network:
                                   self.Down_Sample(X_input, "cross_3", 8, training, original),
                                   ],
                                  axis=4,size=original*6,name="concat_up_mid")
-        dense_4 = self.Dense_Block(mid_input,"dense_block_4",1,growth,training)
+        dense_4 = self.Dense_Block(mid_input,"dense_block_4",dense_layer_num/2,growth,training)
 
         up_input_1 = self.Concat([down_3,dense_4],axis=4,size=original*8,name = "up_input_1")
         up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,original*4)
 
         dense_input_5 = self.Concat([up_1,dense_2],axis=4,size=original*4,name = "dense_input_5")
-        dense_5 = self.Dense_Block(dense_input_5,"dense_block_5",0,growth,training)
+        dense_5 = self.Dense_Block(dense_input_5,"dense_block_5",dense_layer_num/2,growth,training)
 
         up_input_2 = self.Concat([dense_5,down_2],axis=4,size=original*6,name = "up_input_2")
         up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original*2)
 
         dense_input_6 = self.Concat([up_2,dense_1],axis=4,size=original*2,name = "dense_input_6")
-        dense_6 = self.Dense_Block(dense_input_6,"dense_block_6",1,growth,training)
+        dense_6 = self.Dense_Block(dense_input_6,"dense_block_6",dense_layer_num/2,growth,training)
 
         up_input_3 = self.Concat([dense_6,down_1],axis=4,size=original*6,name = "up_input_3")
         up_3 = self.Up_Sample(up_input_3,"up_sample_3",2,training,original*1)

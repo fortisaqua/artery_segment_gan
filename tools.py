@@ -43,8 +43,8 @@ class Test_data():
         # print self.steps
         # print self.block_shape
         self.steps[2] = self.steps[2]/2
+        self.steps[0] = self.steps[0] / 2
         if "final" in type:
-            self.steps[0] = self.steps[0] / 2
             self.steps[1] = self.steps[1] / 2
         self.blocks=dict()
         self.results=dict()
@@ -105,7 +105,7 @@ class Test_data():
                 ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
             except Exception,e:
                 print np.shape(self.results[number].load_data()[:,:,:,0]),self.results[number].get_range()
-        return np.float32(ret>=2)
+        return np.float32(ret>=4)
 
     def get_result_(self):
         ret=np.zeros(self.image_shape,np.float32)
@@ -125,7 +125,7 @@ class Test_data():
                 ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
             except Exception,e:
                 print np.shape(self.results[number].load_data()[:,:,:]),self.results[number].get_range()
-        return np.float32(ret>=4)
+        return np.float32(ret>2)
 
 class Data:
     def __init__(self,config,epoch):
