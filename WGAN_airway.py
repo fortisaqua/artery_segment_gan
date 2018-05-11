@@ -30,17 +30,17 @@ block_test_step = 20
 model_save_step = 50
 output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
-edge_thickness = 10
-original_g = 24
-growth_d = 24
-layer_num_d = 2
+edge_thickness = 20
+original_g = 16
+growth_d = 12
+layer_num_d = 6
 test_dir = './case11/'
 config={}
 config['batch_size'] = batch_size
-config['meta_path'] = '/opt/artery_extraction/data_meta_airway_200.pkl'
+config['meta_path'] = '/opt/artery_extraction/data_meta_airway_500.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 8
+config['train_amount'] = 10
 decay_step = 32 / (config['train_amount'] / 2)
 ################################################################
 
@@ -144,47 +144,30 @@ class Network:
         original=original_g
         growth=growth_d
         dense_layer_num=layer_num_d
-        X_input = self.Input(X,"input",batch_size,original,training)
-        down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original*1)
-        dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num,growth,training)
-        down_2 = self.Down_Sample(dense_1,"down_sample_2",2,training,original*2)
-        dense_2 = self.Dense_Block(down_2,"dense_block_2",dense_layer_num,growth,training)
-        down_3 = self.Down_Sample(dense_2,"down_sample_3",2,training,original*4)
+        X_input = self.Input(X, "input", batch_size, original, training)
+        down_1 = self.Down_Sample(X_input, "down_sample_1", 2, training, original)
+        dense_1 = self.Dense_Block(down_1, "dense_block_1", dense_layer_num, growth, training)
+        down_2 = self.Down_Sample(dense_1, "down_sample_2", 2, training, original * 2)
 
-        dense_3 = self.Dense_Block(down_3,"dense_block_3",dense_layer_num,growth,training)
-        mid_input = self.Concat([dense_3,
-                                  self.Down_Sample(dense_2, "cross_1", 2, training, original),
-                                  self.Down_Sample(dense_1, "cross_2", 4, training, original),
-                                  self.Down_Sample(X_input, "cross_3", 8, training, original),
-                                  ],
-                                 axis=4,size=original*6,name="concat_up_mid")
-        dense_4 = self.Dense_Block(mid_input,"dense_block_4",dense_layer_num/2,growth,training)
+        dense_2 = self.Dense_Block(down_2, "dense_block_2", dense_layer_num, growth, training)
 
-        up_input_1 = self.Concat([down_3,dense_4],axis=4,size=original*8,name = "up_input_1")
-        up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,original*4)
+        up_input_1 = self.Concat([down_2, dense_2,
+                                  self.Down_Sample(dense_1, "cross_1", 2, training, original),
+                                  self.Down_Sample(X_input, "cross_2", 4, training, original)], axis=4,
+                                 size=original * 3, name="concat_up_1")
+        up_1 = self.Up_Sample(up_input_1, "up_sample_1", 2, training, original * 2)
 
-        dense_input_5 = self.Concat([up_1,dense_2],axis=4,size=original*4,name = "dense_input_5")
-        dense_5 = self.Dense_Block(dense_input_5,"dense_block_5",dense_layer_num/2,growth,training)
+        dense_input_3 = self.Concat([up_1, dense_1], axis=4, size=original * 2, name="concat_dense_3")
+        dense_3 = self.Dense_Block(dense_input_3, "dense_block_3", dense_layer_num, growth, training)
 
-        up_input_2 = self.Concat([dense_5,down_2],axis=4,size=original*6,name = "up_input_2")
-        up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original*2)
+        up_input_2 = self.Concat([dense_3, down_1], axis=4, size=original, name="concat_up_2")
+        up_2 = self.Up_Sample(up_input_2, "up_sample_2", 2, training, original)
 
-        dense_input_6 = self.Concat([up_2,dense_1],axis=4,size=original*2,name = "dense_input_6")
-        dense_6 = self.Dense_Block(dense_input_6,"dense_block_6",dense_layer_num/2,growth,training)
-
-        up_input_3 = self.Concat([dense_6,down_1],axis=4,size=original*6,name = "up_input_3")
-        up_3 = self.Up_Sample(up_input_3,"up_sample_3",2,training,original*1)
-
-        predict_input = self.Concat([up_3,
-                                     self.Up_Sample(dense_6, "cross_4", 2, training, original),
-                                     self.Up_Sample(up_2, "cross_5", 2, training, original),
-                                     self.Up_Sample(dense_5, "cross_6", 4, training, original),
-                                     self.Up_Sample(up_1, "cross_7", 4, training, original),
-                                     self.Up_Sample(dense_4, "cross_8", 8, training, original),
-                                     self.Up_Sample(mid_input, "cross_9", 8, training, original),
-                                     self.Up_Sample(dense_3, "cross_10", 8, training, original)],
-                                    axis=4,
-                                    size=original * 8, name="predict_input")
+        predict_input = self.Concat([up_2, X_input,
+                                     self.Up_Sample(up_input_1, "cross_3", 4, training, original),
+                                     self.Up_Sample(dense_input_3, "cross_4", 2, training, original),
+                                     self.Up_Sample(dense_3, "cross_5", 2, training, original)], axis=4,
+                                    size=original * 4, name="predict_input")
         vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input, "predict", training, threshold)
 
         return vox_sig, vox_sig_modified, vox_no_sig
@@ -383,7 +366,7 @@ class Network:
         mask_dir = test_dir + "airway"
         test_batch_size = batch_size
         # test_data = tools.Test_data(dicom_dir,input_shape)
-        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data_airway')
+        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data_final')
         if epoch == 0 :
             test_data.output_origin(self.test_results_dir)
         test_data.organize_blocks()
