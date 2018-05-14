@@ -35,7 +35,7 @@ class Test_data():
         self.image_array = np.transpose(self.image_array,[2,1,0])
         self.image_shape = np.shape(self.image_array)
         if "airway" in type:
-            self.image_array = np.int16(self.image_array < 0) * self.image_array
+            self.image_array = np.int16(self.image_array < 500) * self.image_array
         self.block_shape=block_shape
         self.steps = list()
         for i in range(len(block_shape)):
@@ -43,7 +43,7 @@ class Test_data():
         # print self.steps
         # print self.block_shape
         self.steps[2] = self.steps[2] / 2
-        if "final" in type:
+        if "airway" in type:
             self.steps[0] = self.steps[0] / 2
             self.steps[1] = self.steps[1] / 2
         self.blocks=dict()
@@ -105,7 +105,7 @@ class Test_data():
                 ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
             except Exception,e:
                 print np.shape(self.results[number].load_data()[:,:,:,0]),self.results[number].get_range()
-        return np.float32(ret>=2)
+        return np.float32(ret>6)
 
     def get_result_(self):
         ret=np.zeros(self.image_shape,np.float32)
