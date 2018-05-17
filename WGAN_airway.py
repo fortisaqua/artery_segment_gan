@@ -5,6 +5,7 @@ import scipy.io
 import tools
 import numpy as np
 import time
+import test
 import SimpleITK as ST
 from dicom_read import read_dicoms
 import gc
@@ -19,8 +20,8 @@ power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
 output_shape = [64,64,128]
-epoch_walked = 0
-step_walked = 0
+epoch_walked = 75
+step_walked = 45050
 upper_threshold = 0.6
 MAX_EPOCH = 2000
 re_example_epoch = 2
@@ -28,11 +29,11 @@ total_test_epoch = 1
 show_step = 10
 block_test_step = 20
 model_save_step = 50
-output_epoch = total_test_epoch * 20
-test_extra_threshold = 0.2
+output_epoch = total_test_epoch * 10
+test_extra_threshold = 0.25
 edge_thickness = 20
 original_g = 24
-growth_d = 24
+growth_d = 16
 layer_num_d = 4
 test_dir = './FU_LI_JUN/'
 config={}
@@ -41,7 +42,7 @@ config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 10
-decay_step = 30 / (config['train_amount'] / 2)
+decay_step =  44 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
@@ -158,7 +159,7 @@ class Network:
                                  self.Down_Sample(X_input, "cross_3", 8, training, original),
                                  ],
                                 axis=4, size=original * 6, name="concat_up_mid")
-        dense_4 = self.Dense_Block(mid_input, "dense_block_4", dense_layer_num / 2, growth, training)
+        dense_4 = self.Dense_Block(mid_input, "dense_block_4", dense_layer_num * 3 / 2, growth, training)
 
         up_input_1 = self.Concat([down_3, dense_4], axis=4, size=original * 8, name="up_input_1")
         up_1 = self.Up_Sample(up_input_1, "up_sample_1", 2, training, original * 4)
@@ -383,9 +384,7 @@ class Network:
         mask_dir = test_dir + "airway"
         test_batch_size = batch_size
         # test_data = tools.Test_data(dicom_dir,input_shape)
-        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data_airway')
-        if epoch == 0 :
-            test_data.output_origin(self.test_results_dir)
+        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data')
         test_data.organize_blocks()
         test_mask = read_dicoms(mask_dir)
         array_mask = ST.GetArrayFromImage(test_mask)
@@ -443,10 +442,8 @@ class Network:
         test_result_array = test_data.get_result()
         print "result shape: ", np.shape(test_result_array)
         to_be_transformed = self.post_process(test_result_array)
-        if epoch % output_epoch == 0:
-            self.output_img(to_be_transformed, test_data.space, epoch)
         if epoch == total_test_epoch:
-            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0])*255)
+            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
             mask_img.SetSpacing(test_data.space)
             ST.WriteImage(mask_img, self.test_results_dir + 'test_mask.vtk')
         test_IOU = 2 * np.sum(to_be_transformed * array_mask) / (
@@ -503,7 +500,7 @@ class Network:
                 saver.restore(sess, self.train_models_dir + 'model.cptk')
             else:
                 sess.run(tf.global_variables_initializer())
-            test_data = tools.Test_data(dicom_dir, input_shape, 'dicom_data_final')
+            test_data = tools.Test_data(dicom_dir, input_shape, 'dicom_data')
             test_data.organize_blocks()
             block_numbers = test_data.blocks.keys()
             for i in range(0, len(block_numbers), test_batch_size):
@@ -562,12 +559,12 @@ class Network:
             final_img = ST.GetImageFromArray(np.transpose(to_be_transformed, [2, 1, 0]))
             final_img.SetSpacing(test_data.space)
             print "writing final testing result"
-            # print './test_result/test_result_final.vtk'
-            ST.WriteImage(final_img, self.test_results_dir + "test_result" + '.vtk')
+            print './test_result/test_result_final.vtk'
+            ST.WriteImage(final_img, './test_result/test_result_final.vtk')
             return final_img
 
 if __name__ == "__main__":
-    dicom_dir = "./XIONG_YAO/original1"
+    dicom_dir = "./FU_LI_JUN/original1"
     net = Network()
     net.train(config)
     # final_img = net.test(dicom_dir)
