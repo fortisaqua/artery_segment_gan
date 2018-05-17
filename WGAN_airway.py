@@ -32,16 +32,16 @@ output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.2
 edge_thickness = 20
 original_g = 24
-growth_d = 16
+growth_d = 24
 layer_num_d = 4
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
-config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
+config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 10
-decay_step = 25 / (config['train_amount'] / 2)
+decay_step = 30 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
@@ -158,7 +158,7 @@ class Network:
                                  self.Down_Sample(X_input, "cross_3", 8, training, original),
                                  ],
                                 axis=4, size=original * 6, name="concat_up_mid")
-        dense_4 = self.Dense_Block(mid_input, "dense_block_4", dense_layer_num * 3 / 2, growth, training)
+        dense_4 = self.Dense_Block(mid_input, "dense_block_4", dense_layer_num / 2, growth, training)
 
         up_input_1 = self.Concat([down_3, dense_4], axis=4, size=original * 8, name="up_input_1")
         up_1 = self.Up_Sample(up_input_1, "up_sample_1", 2, training, original * 4)
