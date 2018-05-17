@@ -33,15 +33,15 @@ test_extra_threshold = 0.2
 edge_thickness = 20
 original_g = 24
 growth_d = 16
-layer_num_d = 6
-test_dir = './WU_XIAO_YING/'
+layer_num_d = 4
+test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 10
-decay_step = 30 / (config['train_amount'] / 2)
+decay_step =  / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
