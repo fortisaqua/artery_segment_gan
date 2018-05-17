@@ -14,7 +14,7 @@ import gc
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 batch_size = 2
-ori_lr = 0.001
+ori_lr = 0.0001
 power = 0.9
 # GPU0 = '1'
 input_shape = [64,64,128]
@@ -41,7 +41,7 @@ config['meta_path'] = '/opt/artery_extraction/data_meta_airway_1.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
 config['train_amount'] = 10
-decay_step =  / (config['train_amount'] / 2)
+decay_step = 25 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
