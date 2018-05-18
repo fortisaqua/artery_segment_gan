@@ -45,13 +45,14 @@ class Test_data():
         # print self.steps
         # print self.block_shape
         self.steps[2] = self.steps[2] / 2
-        if "airway" in type:
-            self.steps[0] = self.steps[0] / 2
-            self.steps[1] = self.steps[1] / 2
+        self.steps[0] = self.steps[0] / 2
+        self.steps[1] = self.steps[1] / 2
         self.blocks=dict()
         self.results=dict()
         print self.steps
         print self.block_shape
+        print "maximum value of original data : ",np.max(self.image_array)
+        print "minimum value of original data : ",np.min(self.image_array)
         # self.output_origin()
 
     def output_origin(self,output_dir):
@@ -107,6 +108,8 @@ class Test_data():
                 ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
             except Exception,e:
                 print np.shape(self.results[number].load_data()[:,:,:,0]),self.results[number].get_range()
+        print "maximum value of predicted mask : ",np.max(ret)
+        print "minimum value of predicted mask : ",np.min(ret)
         return np.float32(ret>6)
 
     def get_result_(self):
