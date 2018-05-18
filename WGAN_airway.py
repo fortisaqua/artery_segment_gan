@@ -567,6 +567,6 @@ class Network:
 if __name__ == "__main__":
     dicom_dir = "./FU_LI_JUN/original1"
     net = Network()
-    # net.train(config)
-    final_img = net.test(dicom_dir)
+    net.train(config)
+    # final_img = net.test(dicom_dir)
     # ST.WriteImage(final_img,'./final_result.vtk')
