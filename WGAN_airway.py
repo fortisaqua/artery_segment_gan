@@ -32,9 +32,9 @@ model_save_step = 50
 output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 20
-original_g = 24
-growth_d = 16
-layer_num_d = 4
+original_g = 16
+growth_d = 12
+layer_num_d = 6
 test_dir = './FU_LI_JUN/'
 config={}
 config['batch_size'] = batch_size
@@ -146,45 +146,28 @@ class Network:
         growth=growth_d
         dense_layer_num=layer_num_d
         X_input = self.Input(X,"input",batch_size,original,training)
-        down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original*1)
-        dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num,growth,training)
+        down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
+        dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num * 2,growth,training)
         down_2 = self.Down_Sample(dense_1,"down_sample_2",2,training,original*2)
+
         dense_2 = self.Dense_Block(down_2,"dense_block_2",dense_layer_num,growth,training)
-        down_3 = self.Down_Sample(dense_2,"down_sample_3",2,training,original*4)
 
-        dense_3 = self.Dense_Block(down_3,"dense_block_3",dense_layer_num,growth,training)
-        mid_input = self.Concat([dense_3,
-                                  self.Down_Sample(dense_2, "cross_1", 2, training, original),
-                                  self.Down_Sample(dense_1, "cross_2", 4, training, original),
-                                  self.Down_Sample(X_input, "cross_3", 8, training, original),
-                                  ],
-                                 axis=4,size=original*6,name="concat_up_mid")
-        dense_4 = self.Dense_Block(mid_input,"dense_block_4",dense_layer_num,growth,training)
+        up_input_1 = self.Concat([down_2,dense_2,
+                                  self.Down_Sample(dense_1,"cross_1",2,training,original),
+                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=original*3,name="concat_up_1")
+        up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,original*2)
 
-        up_input_1 = self.Concat([down_3,dense_4],axis=4,size=original*8,name = "up_input_1")
-        up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,original*4)
+        dense_input_3 = self.Concat([up_1,dense_1],axis=4,size=original*2,name="concat_dense_3")
+        dense_3 = self.Dense_Block(dense_input_3,"dense_block_3",dense_layer_num,growth,training)
 
-        dense_input_5 = self.Concat([up_1,dense_2],axis=4,size=original*4,name = "dense_input_5")
-        dense_5 = self.Dense_Block(dense_input_5,"dense_block_5",dense_layer_num,growth,training)
+        up_input_2 = self.Concat([dense_3,down_1],axis=4,size=original,name="concat_up_2")
+        up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original)
 
-        up_input_2 = self.Concat([dense_5,down_2],axis=4,size=original*6,name = "up_input_2")
-        up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,original*2)
-
-        dense_input_6 = self.Concat([up_2,dense_1],axis=4,size=original*2,name = "dense_input_6")
-        dense_6 = self.Dense_Block(dense_input_6,"dense_block_6",dense_layer_num,growth,training)
-
-        up_input_3 = self.Concat([dense_6,down_1],axis=4,size=original*6,name = "up_input_3")
-        up_3 = self.Up_Sample(up_input_3,"up_sample_3",2,training,original*1)
-
-        predict_input = self.Concat([up_3,
-                                     self.Up_Sample(dense_6, "cross_4", 2, training, original),
-                                     self.Up_Sample(up_2, "cross_5", 2, training, original),
-                                     self.Up_Sample(dense_5, "cross_6", 4, training, original),
-                                     self.Up_Sample(up_1, "cross_7", 4, training, original),],
-                                    axis=4,
+        predict_input = self.Concat([up_2, X_input,
+                                     self.Up_Sample(up_input_1, "cross_3", 4, training, original),
+                                     self.Up_Sample(dense_3, "cross_5", 2, training, original)], axis=4,
                                     size=original * 4, name="predict_input")
         vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input, "predict", training, threshold)
-
         return vox_sig, vox_sig_modified, vox_no_sig
 
     def dis(self, X, Y,training):
