@@ -154,7 +154,7 @@ class Network:
 
         up_input_1 = self.Concat([down_2,dense_2,
                                   self.Down_Sample(down_1,"cross_1",2,training,original),
-                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=training,original + dense_layer_num*growth*2,name="concat_up_1")
+                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=original + dense_layer_num*growth*2,name="concat_up_1")
         up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,128)
 
         up_input_2 = self.Concat([up_1,dense_1],axis=4,size=original + dense_layer_num*growth*1,name="concat_up_2")
