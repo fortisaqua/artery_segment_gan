@@ -124,9 +124,9 @@ class Network:
 
     def Predict(self,X,name,training,threshold):
         with tf.variable_scope(name):
-            predict_conv_1 = tools.Ops.conv3d(X, k=2, out_c=32, str=1, name="conv_predict_1")
-            # bn_1 = tools.Ops.batch_norm(predict_conv_1,"bn_predict_1",training)
-            # relu_1 = tools.Ops.xxlu(bn_1, name="relu_predict_1")
+            bn_1 = tools.Ops.batch_norm(X,"bn_predict_1",training)
+            relu_1 = tools.Ops.xxlu(bn_1, name="relu_predict_1")
+            predict_conv_1 = tools.Ops.conv3d(relu_1, k=3, out_c=16, str=1, name="conv_predict_1")
             predict_map = tools.Ops.conv3d(predict_conv_1, k=1, out_c=1, str=1, name="predict_map")
             # bn_2 = tools.Ops.batch_norm(predict_conv_2,"bn_predict_2",training)
             # relu_2 = tools.Ops.xxlu(predict_conv_2, name="relu_predict_2")
@@ -148,22 +148,22 @@ class Network:
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.Down_Sample(X_input,"down_sample_1",2,training,original)
         dense_1 = self.Dense_Block(down_1,"dense_block_1",dense_layer_num, growth,training)
-        down_2 = self.Down_Sample(dense_1,"down_sample_2",2,training,original*2)
+        down_2 = self.Down_Sample(dense_1,"down_sample_2",2,training,original + dense_layer_num*growth*1)
 
         dense_2 = self.Dense_Block(down_2,"dense_block_2",dense_layer_num,growth,training)
 
         up_input_1 = self.Concat([down_2,dense_2,
                                   self.Down_Sample(down_1,"cross_1",2,training,original),
-                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=original*3,name="concat_up_1")
+                                  self.Down_Sample(X_input,"cross_2",4,training,original)],axis=4,size=training,original + dense_layer_num*growth*2,name="concat_up_1")
         up_1 = self.Up_Sample(up_input_1,"up_sample_1",2,training,128)
 
-        up_input_2 = self.Concat([up_1,dense_1],axis=4,size=original,name="concat_up_2")
+        up_input_2 = self.Concat([up_1,dense_1],axis=4,size=original + dense_layer_num*growth*1,name="concat_up_2")
         up_2 = self.Up_Sample(up_input_2,"up_sample_2",2,training,64)
 
         predict_input = self.Concat([up_2, X_input,
                                      self.Up_Sample(dense_2, "cross_3", 4, training, original),
                                      self.Up_Sample(up_1, "cross_5", 2, training, original)], axis=4,
-                                    size=original * 4, name="predict_input")
+                                    size=64, name="predict_input")
         vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input, "predict", training, threshold)
         return vox_sig, vox_sig_modified, vox_no_sig
 
