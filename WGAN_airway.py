@@ -421,7 +421,9 @@ class Network:
         to_be_transformed = self.post_process(test_result_array)
         if epoch == 0:
             print "output original test data"
-            test_data.output_origin(self.test_results_dir)
+            ST.WriteImage(ST.GetImageFromArray(np.transpose(test_data.image_array,[2,1,0])),output_dir+"original.vtk")
+            ST.WriteImage(ST.GetImageFromArray(np.transpose(test_data.image_array*array_mask,[2,1,0])),self.test_results_dir+"target.vtk")
+            ST.WriteImage(ST.GetImageFromArray(np.transpose(array_mask,[2,1,0])),self.test_results_dir+"mask.vtk")
         if epoch % output_epoch == 0:
             self.output_img(to_be_transformed, test_data.space, epoch)
         if epoch == total_test_epoch:
