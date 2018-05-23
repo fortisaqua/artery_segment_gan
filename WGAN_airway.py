@@ -30,10 +30,10 @@ show_step = 10
 block_test_step = 20
 model_save_step = 50
 output_epoch = total_test_epoch * 20
-test_extra_threshold = 0.20
+test_extra_threshold = 0.25
 edge_thickness = 20
-original_g = 24
-growth_d = 10
+original_g = 16
+growth_d = 12
 layer_num_d = 12
 test_dir = './WU_XIAO_YING/'
 config={}
@@ -41,8 +41,8 @@ config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
 config['data_size'] = input_shape
 config['test_amount'] = 2
-config['train_amount'] = 12
-decay_step = 44 / (config['train_amount'] / 2)
+config['train_amount'] = 10
+decay_step = 24 / (config['train_amount'] / 2)
 ################################################################
 
 class Network:
