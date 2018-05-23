@@ -361,7 +361,7 @@ class Network:
         mask_dir = test_dir + "airway"
         test_batch_size = batch_size
         # test_data = tools.Test_data(dicom_dir,input_shape)
-        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data')
+        test_data = tools.Test_data(origin_data, input_shape, 'vtk_data_airway')
         test_data.organize_blocks()
         test_mask = read_dicoms(mask_dir)
         array_mask = ST.GetArrayFromImage(test_mask)
@@ -420,6 +420,7 @@ class Network:
         print "result shape: ", np.shape(test_result_array)
         to_be_transformed = self.post_process(test_result_array)
         if epoch == 0:
+            print "output original test data"
             test_data.output_origin(self.test_results_dir)
         if epoch % output_epoch == 0:
             self.output_img(to_be_transformed, test_data.space, epoch)
