@@ -40,7 +40,7 @@ config={}
 config['batch_size'] = batch_size
 config['meta_path'] = '/opt/artery_extraction/data_meta_airway.pkl'
 config['data_size'] = input_shape
-config['test_amount'] = 2
+config['test_amount'] = 1
 config['train_amount'] = 12
 decay_step = 24 / (config['train_amount'] / 2)
 ################################################################
