@@ -33,7 +33,7 @@ output_epoch = total_test_epoch * 20
 test_extra_threshold = 0.25
 edge_thickness = 20
 original_g = 16
-growth_d = 12
+growth_d = 16
 layer_num_d = 12
 test_dir = './WU_XIAO_YING/'
 config={}
@@ -86,10 +86,7 @@ class Network:
                 with tf.variable_scope("input_"+str(j+1)):
                     input = tf.concat([sub_layer for sub_layer in layers], axis=4)
                 with tf.variable_scope("dense_layer_"+str(j+1)):
-                    layer = tools.Ops.batch_norm(input, 'bn_dense_1_1_' + str(j+1), training=training)
-                    layer = tools.Ops.xxlu(layer, name='relu_1')
-                    layer = tools.Ops.conv3d(layer, k=1, out_c=growth, str=s_e[j], name='dense_1_1_' + str(j+1))
-                    layer = tools.Ops.batch_norm(layer, 'bn_dense_1_2_' + str(j), training=training)
+                    layer = tools.Ops.batch_norm(input, 'bn_dense_1_2_' + str(j), training=training)
                     layer = tools.Ops.xxlu(layer, name='relu_2')
                     layer = tools.Ops.conv3d(layer, k=3, out_c=growth, str=s_e[j], name='dense_1_2_' + str(j+1))
                 layers.append(layer)
@@ -99,16 +96,14 @@ class Network:
 
     def Down_Sample(self,X,name,str,training,size):
         with tf.variable_scope(name):
-            down_sample_input = tools.Ops.conv3d(X, k=3, out_c=size, str=1, name='down_sample_input')
-            bn_input = tools.Ops.batch_norm(down_sample_input, "bn_input", training=training)
+            bn_input = tools.Ops.batch_norm(X, "bn_input", training=training)
             relu_input = tools.Ops.xxlu(bn_input, name="relu_input")
             down_sample = tools.Ops.conv3d(relu_input, k=str, out_c=size, str=str, name='down_sample')
         return down_sample
 
     def Up_Sample(self,X,name,str,training,size):
         with tf.variable_scope(name):
-            up_sample_input = tools.Ops.conv3d(X, k=3, out_c=size, str=1, name='up_sample_input')
-            bn_1 = tools.Ops.batch_norm(up_sample_input, 'bn_after_dense_1', training=training)
+            bn_1 = tools.Ops.batch_norm(X, 'bn_after_dense_1', training=training)
             relu_1 = tools.Ops.xxlu(bn_1, name='relu_1')
             deconv_1 = tools.Ops.deconv3d(relu_1, k=2, out_c=size, str=str, name='deconv_up_sample_2')
         return deconv_1
