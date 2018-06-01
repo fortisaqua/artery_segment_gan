@@ -110,7 +110,7 @@ class Test_data():
                 print np.shape(self.results[number].load_data()[:,:,:,0]),self.results[number].get_range()
         print "maximum value of predicted mask : ",np.max(ret)
         print "minimum value of predicted mask : ",np.min(ret)
-        return np.float32(ret>4)
+        return np.float32(ret>6)
 
     def get_result_(self):
         ret=np.zeros(self.image_shape,np.float32)
