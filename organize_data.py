@@ -3,7 +3,7 @@ import numpy as np
 import cPickle as pickle
 import scipy.io as sio
 import sys
-import zoom
+# import zoom
 import time
 import random
 
@@ -63,21 +63,21 @@ def get_organized_data_fixed_2D(meta_path, type, half_size):
             print e
     return dicom_datas, clipped_datas
 
-def resize_img(img_array,input_size):
-    shape = np.shape(img_array)
-    ret = img_array
-    if shape[0]<input_size[0] or shape[1]<input_size[1]:
-        ret = zoom.Array_Zoom_in(img_array,float(input_size[0])/float(shape[0]),float(input_size[1])/float(shape[1]))
-    if shape[0]>input_size[0] or shape[1]>input_size[1]:
-        ret = zoom.Array_Reduce(img_array,float(input_size[0])/float(shape[0]),float(input_size[1])/float(shape[1]))
-    shape_resized=np.shape(ret)
-    if shape_resized[0]<input_size[0] or shape_resized[1]<input_size[1]:
-        return_array = np.zeros(input_size,dtype=np.float32)
-        return_array[0:shape_resized[0],0:shape_resized[1],:]=ret[:,:,:]
-        ret = return_array
-    if shape_resized[0]>input_size[0] or shape_resized[1]>input_size[1]:
-        ret = ret[0:input_size[0],0:input_size[1],:]
-    return ret
+# def resize_img(img_array,input_size):
+#     shape = np.shape(img_array)
+#     ret = img_array
+#     if shape[0]<input_size[0] or shape[1]<input_size[1]:
+#         ret = zoom.Array_Zoom_in(img_array,float(input_size[0])/float(shape[0]),float(input_size[1])/float(shape[1]))
+#     if shape[0]>input_size[0] or shape[1]>input_size[1]:
+#         ret = zoom.Array_Reduce(img_array,float(input_size[0])/float(shape[0]),float(input_size[1])/float(shape[1]))
+#     shape_resized=np.shape(ret)
+#     if shape_resized[0]<input_size[0] or shape_resized[1]<input_size[1]:
+#         return_array = np.zeros(input_size,dtype=np.float32)
+#         return_array[0:shape_resized[0],0:shape_resized[1],:]=ret[:,:,:]
+#         ret = return_array
+#     if shape_resized[0]>input_size[0] or shape_resized[1]>input_size[1]:
+#         ret = ret[0:input_size[0],0:input_size[1],:]
+#     return ret
 
 def get_organized_data_common(meta_path, type, half_size,input_size):
     range_type=1
