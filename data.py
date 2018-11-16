@@ -1,10 +1,10 @@
 import random
-import organize_data
 from dicom_read import read_dicoms
 import SimpleITK as ST
 import numpy as np
-import os
+import os, pickle
 from random import shuffle
+import scipy.io as sio
 
 class Data_block:
     # single input data block
@@ -149,7 +149,7 @@ class Data:
         self.shuffle_X_Y_pairs()
 
     def load_X_Y_numbers_special(self,meta_path,epoch):
-        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_organized_data(meta_path,self.data_size,epoch,self.sample_amount)
+        self.dicom_origin,self.mask ,zero_numbers= self.get_organized_data(meta_path,self.data_size,epoch,self.sample_amount)
         numbers=[]
         train_numbers=[]
         test_numbers=[]
@@ -174,6 +174,68 @@ class Data:
                 total_num=total_num+1
                 locs.append([number,i])
         return int(total_num/self.batch_size),locs
+
+    def get_organized_data(self, meta_path, single_size, epoch, train_amount):
+        rand = random.Random()
+        dicom_datas = dict()
+        mask_datas = dict()
+        pickle_reader = open(meta_path)
+        meta_data = pickle.load(pickle_reader)
+        # accept_zeros = rand.sample(meta_data.keys(),8)
+        allKeys = meta_data.keys()
+        total_keys = []
+        for keyName in allKeys:
+            isTest = False
+            for testName in self.config["testDataName"]:
+                if testName in keyName:
+                    isTest = True
+                    break
+            if not isTest:
+                total_keys.append(keyName)
+
+        begin = (epoch * (train_amount / 2)) % len(total_keys)
+        end = (epoch * (train_amount / 2) + train_amount) % len(total_keys)
+        if begin < end:
+            to_be_trained = total_keys[begin:end]
+        else:
+            to_be_trained = total_keys[begin:] + total_keys[:end]
+        accept_zeros = rand.sample(to_be_trained, 1)
+        # for i in range(8):
+        #     accept_zeros = to_be_trained[accept_zeros[i]]
+        for number, data_dir in meta_data.items():
+            if number in to_be_trained:
+                print number
+                zero_counting = 0
+                dataset = sio.loadmat(data_dir)
+                dicom_datas[number] = list()
+                mask_datas[number] = list()
+                original_array = dataset['original']
+                mask_array = dataset['mask']
+                data_shape = np.shape(mask_array)
+                for i in range(0, data_shape[0], single_size[0] / 2):
+                    for j in range(0, data_shape[1], single_size[1] / 2):
+                        for k in range(0, data_shape[2], single_size[2] / 2):
+                            if i + single_size[0] / 2 < data_shape[0] and j + single_size[1] / 2 < data_shape[1] and k + \
+                                    single_size[2] / 2 < data_shape[2]:
+                                clipped_mask = mask_array[i:i + single_size[0], j:j + single_size[1],
+                                               k:k + single_size[2]]
+                                if np.sum(np.float32(clipped_mask)) / (single_size[0] * single_size[1] * single_size[2]) \
+                                        <= (0.05 * (1 - epoch * 1.0 / 2000)) and number in accept_zeros:
+                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1],
+                                                    k:k + single_size[2]]
+                                    dicom_datas[number].append(clipped_dicom)
+                                    mask_datas[number].append(clipped_mask)
+                                elif np.sum(np.float32(clipped_mask)) / (single_size[0] * single_size[1] * single_size[2]) \
+                                        > (0.05 * (1 - epoch * 1.0 / 2000)):
+                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1],
+                                                    k:k + single_size[2]]
+                                    dicom_datas[number].append(clipped_dicom)
+                                    mask_datas[number].append(clipped_mask)
+                            # clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
+                            # dicom_datas[number].append(clipped_dicom)
+                            # mask_datas[number].append(clipped_mask)
+        return dicom_datas, mask_datas, accept_zeros
+
 
     def load_X_Y_test_batch_num(self):
         total_num = 0
@@ -216,8 +278,8 @@ class Data:
             temp_y = Y_data_voxels[i][:,:,:]
             shape_X = np.shape(temp_X)
             shape_Y = np.shape(temp_y)
-            X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_data_voxels[i][:,:,:]
-            Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] = Y_data_voxels[i][:,:,:]
+            X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] += X_data_voxels[i][:,:,:]
+            Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] += Y_data_voxels[i][:,:,:]
 
         return X_data,Y_data
 
@@ -276,159 +338,221 @@ class Data:
             for item in fail_list:
                 print item
 
-class Data_multi():
-    def __init__(self,config,epoch):
-        self.config = config
-        self.train_batch_index = 0
-        self.test_seq_index = 0
-        self.epoch = epoch
-        self.batch_size = config['batch_size']
-        self.test_amount = config['test_amount']
-        self.train_amount = config['train_amount']
-        self.data_size = config['data_size']
-        self.max_epoch = config['max_epoch']
-        self.mask_names = config['mask_names']
-        self.full_zero_num = config['full_zero_num']
-        self.class_num = config['class_num']
-        self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config['meta_path'],self.epoch)
-
-        print "train_numbers:",len(self.train_numbers),"---",self.train_numbers
-        print "test_numbers:",len(self.test_numbers),"---",self.test_numbers
-        self.total_train_batch_num,self.train_locs = self.load_X_Y_train_batch_num()
-        self.total_test_seq_batch,self.test_locs = self.load_X_Y_test_batch_num()
-        print "total_train_batch_num: ", self.total_train_batch_num
-        print "total_test_seq_batch: ",self.total_test_seq_batch
-        self.check_data()
-
-    def load_X_Y_numbers_special(self,meta_path,epoch):
-        self.dicom_origin,self.mask ,zero_numbers= organize_data.get_multi_data(meta_path,self.data_size,epoch,
-                                                                                self.train_amount,self.max_epoch,
-                                                                                self.mask_names,self.full_zero_num)
-        numbers=[]
-        train_numbers=[]
-        test_numbers=[]
-        for number in self.mask.keys():
-            if len(self.mask[number])>0:
-                numbers.append(number)
-        for i in range(self.test_amount):
-            test_number_temp = numbers[random.randint(0,len(numbers)-1)]
-            while test_number_temp in zero_numbers:
-                test_number_temp = numbers[random.randint(0, len(numbers) - 1)]
-            test_numbers.append(test_number_temp)
-        for number in numbers:
-            if not number in test_numbers:
-                train_numbers.append(number)
-        return train_numbers,test_numbers
-
-    def load_X_Y_train_batch_num(self):
-        total_num=0
-        locs=[]
-        for number in self.train_numbers:
-            for i in range(len(self.mask[number])):
-                total_num=total_num+1
-                locs.append([number,i])
-        return int(total_num/self.batch_size),locs
-
-    def load_X_Y_test_batch_num(self):
-        total_num = 0
-        locs=[]
-        for number in self.test_numbers:
-            for i in range(len(self.mask[number])):
-                total_num = total_num + 1
-                locs.append([number,i])
-        return int(total_num / self.batch_size),locs
-
-    def shuffle_X_Y_pairs(self):
-        train_locs_new=[]
-        test_locs_new=[]
-        trains=self.train_locs
-        tests=self.test_locs
-        self.train_batch_index = 0
-        train_index = range(len(trains))
-        test_index = range(len(tests))
-        shuffle(train_index)
-        shuffle(test_index)
-        for i in train_index:
-            train_locs_new.append(trains[i])
-        for j in test_index:
-            test_locs_new.append(tests[j])
-        self.train_locs=train_locs_new
-        self.test_locs=test_locs_new
-
-    def load_X_Y_voxel_train_next_batch(self):
-        temp_locs=self.train_locs[self.batch_size*self.train_batch_index:self.batch_size*(self.train_batch_index+1)]
-        X_data_voxels=[]
-        Y_data_voxels=[]
-        for pair in temp_locs:
-            X_data_voxels.append(self.dicom_origin[pair[0]][pair[1]])
-            Y_data_voxels.append(self.mask[pair[0]][pair[1]])
-        self.train_batch_index += 1
-        X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
-        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2],self.class_num],np.float32)
-        for i in range(len(X_data_voxels)):
-            temp_X = X_data_voxels[i][:,:,:]
-            shape_X = np.shape(temp_X)
-            X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_data_voxels[i][:,:,:]
-
-            temp_y = Y_data_voxels[i]["artery"][:,:,:]
-            shape_Y = np.shape(temp_y)
-            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],0] = Y_data_voxels[i]["artery"][:, :, :]
-            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],1] = Y_data_voxels[i]["airway"][:, :, :]
-            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],2] = Y_data_voxels[i]["background"][:, :, :]
-        return X_data,Y_data
-
-    def load_X_Y_voxel_test_next_batch(self,fix_sample=False):
-        if fix_sample:
-            random.seed(45)
-        idx = random.sample(range(len(self.test_locs)), self.batch_size)
-        X_test_voxels_batch=[]
-        Y_test_voxels_batch=[]
-        for i in idx:
-            temp_pair=self.test_locs[i]
-            X_test_voxels_batch.append(self.dicom_origin[temp_pair[0]][temp_pair[1]])
-            Y_test_voxels_batch.append(self.mask[temp_pair[0]][temp_pair[1]])
-        X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
-        Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2],self.class_num],np.float32)
-        for i in range(len(X_test_voxels_batch)):
-            temp_X = X_test_voxels_batch[i][:, :, :]
-            shape_X = np.shape(temp_X)
-            X_data[i, :shape_X[0], :shape_X[1], :shape_X[2]] = X_test_voxels_batch[i][:, :, :]
-
-            temp_y = Y_test_voxels_batch[i]["artery"][:, :, :]
-            shape_Y = np.shape(temp_y)
-            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 0] = Y_test_voxels_batch[i]["artery"][:, :, :]
-            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 1] = Y_test_voxels_batch[i]["airway"][:, :, :]
-            Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 2] = Y_test_voxels_batch[i]["background"][:, :, :]
-        return X_data,Y_data
-
-    ###################  check datas
-    def check_data(self):
-        fail_list = []
-        tag = True
-        for pair in self.train_locs:
-            test_array = np.zeros(self.data_size,np.uint8)
-            for name in self.mask_names:
-                test_array = test_array + self.mask[pair[0]][pair[1]][name]
-            test_array = test_array + self.mask[pair[0]][pair[1]]["background"]
-            if np.max(test_array) == np.min(test_array) ==1:
-                tag = True
-            else:
-                tag = False
-                fail_list.append(pair)
-        for pair in self.test_locs:
-            test_array = np.zeros(self.data_size, np.uint8)
-            for name in self.mask_names:
-                test_array = test_array + self.mask[pair[0]][pair[1]][name]
-            test_array = test_array + self.mask[pair[0]][pair[1]]["background"]
-            if np.max(test_array) == np.min(test_array) == 1:
-                tag = True
-            else:
-                tag = False
-                fail_list.append(pair)
-                print "=============================================="
-        if tag:
-            print "checked!"
+    # method of getting many masks for multi-class classifying job on pixel level
+    def get_multi_data(self, meta_path, single_size, epoch, train_amount, max_epoch, mask_names, full_zero_num):
+        rand = random.Random()
+        dicom_datas = dict()
+        mask_datas = dict()
+        pickle_reader = open(meta_path)
+        meta_data = pickle.load(pickle_reader)
+        # accept_zeros = rand.sample(meta_data.keys(),8)
+        total_keys = meta_data.keys()
+        begin = (epoch * (train_amount / 2)) % len(total_keys)
+        end = (epoch * (train_amount / 2) + train_amount) % len(total_keys)
+        if begin < end:
+            to_be_trained = total_keys[begin:end]
         else:
-            print "some are failed"
-            for item in fail_list:
-                print item
+            to_be_trained = total_keys[begin:] + total_keys[:end]
+        accept_zeros = rand.sample(to_be_trained, full_zero_num)
+        # for i in range(8):
+        #     accept_zeros = to_be_trained[accept_zeros[i]]
+        for number, data_dir in meta_data.items():
+            if number in to_be_trained:
+                print number
+                dataset = sio.loadmat(data_dir)
+                dicom_datas[number] = list()
+                mask_datas[number] = list()
+                original_array = dataset['original']
+                mask_arrays = dict()
+                for name in dataset.keys():
+                    if name in mask_names:
+                        mask_arrays[name] = dataset[name]
+                data_shape = np.shape(original_array)
+
+                for i in range(0, data_shape[0], single_size[0] / 2):
+                    for j in range(0, data_shape[1], single_size[1] / 2):
+                        for k in range(0, data_shape[2], single_size[2] / 2):
+                            if i + single_size[0] / 2 < data_shape[0] and j + single_size[1] / 2 < data_shape[1] and k + \
+                                    single_size[2] / 2 < data_shape[2]:
+                                clipped_mask = dict()
+                                flag = False
+                                for name in mask_arrays.keys():
+                                    temp_mask = mask_arrays[name][i:i + single_size[0], j:j + single_size[1],
+                                                k:k + single_size[2]]
+                                    temp_shape = np.shape(temp_mask)
+                                    clipped_mask[name] = np.zeros(single_size, np.uint8)
+                                    clipped_mask[name][:temp_shape[0], :temp_shape[1], :temp_shape[2]] += temp_mask
+                                    if np.sum(np.float32(clipped_mask[name])) / (
+                                            single_size[0] * single_size[1] * single_size[2]) >= (
+                                            0.05 * (1 - epoch * 1.0 / max_epoch)) \
+                                            or number in accept_zeros:
+                                        flag = True
+                                if flag:
+                                    temp_dicom = original_array[i:i + single_size[0], j:j + single_size[1],
+                                                 k:k + single_size[2]]
+                                    temp_shape = np.shape(temp_dicom)
+                                    clipped_dicom = np.zeros(single_size, np.int32)
+                                    clipped_dicom[:temp_shape[0], :temp_shape[1], :temp_shape[2]] += temp_dicom
+                                    dicom_datas[number].append(clipped_dicom)
+                                    clipped_mask["background"] = np.uint8(
+                                        (clipped_mask["airway"] + clipped_mask["artery"]) == 0)
+                                    mask_datas[number].append(clipped_mask)
+
+        return dicom_datas, mask_datas, accept_zeros
+
+# class Data_multi():
+#     def __init__(self,config,epoch):
+#         self.config = config
+#         self.train_batch_index = 0
+#         self.test_seq_index = 0
+#         self.epoch = epoch
+#         self.batch_size = config['batch_size']
+#         self.test_amount = config['test_amount']
+#         self.train_amount = config['train_amount']
+#         self.data_size = config['data_size']
+#         self.max_epoch = config['max_epoch']
+#         self.mask_names = config['mask_names']
+#         self.full_zero_num = config['full_zero_num']
+#         self.class_num = config['class_num']
+#         self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config['meta_path'],self.epoch)
+#
+#         print "train_numbers:",len(self.train_numbers),"---",self.train_numbers
+#         print "test_numbers:",len(self.test_numbers),"---",self.test_numbers
+#         self.total_train_batch_num,self.train_locs = self.load_X_Y_train_batch_num()
+#         self.total_test_seq_batch,self.test_locs = self.load_X_Y_test_batch_num()
+#         print "total_train_batch_num: ", self.total_train_batch_num
+#         print "total_test_seq_batch: ",self.total_test_seq_batch
+#         self.check_data()
+#
+#     def load_X_Y_numbers_special(self,meta_path,epoch):
+#         self.dicom_origin,self.mask ,zero_numbers= organize_data.get_multi_data(meta_path,self.data_size,epoch,
+#                                                                                 self.train_amount,self.max_epoch,
+#                                                                                 self.mask_names,self.full_zero_num)
+#         numbers=[]
+#         train_numbers=[]
+#         test_numbers=[]
+#         for number in self.mask.keys():
+#             if len(self.mask[number])>0:
+#                 numbers.append(number)
+#         for i in range(self.test_amount):
+#             test_number_temp = numbers[random.randint(0,len(numbers)-1)]
+#             while test_number_temp in zero_numbers:
+#                 test_number_temp = numbers[random.randint(0, len(numbers) - 1)]
+#             test_numbers.append(test_number_temp)
+#         for number in numbers:
+#             if not number in test_numbers:
+#                 train_numbers.append(number)
+#         return train_numbers,test_numbers
+#
+#     def load_X_Y_train_batch_num(self):
+#         total_num=0
+#         locs=[]
+#         for number in self.train_numbers:
+#             for i in range(len(self.mask[number])):
+#                 total_num=total_num+1
+#                 locs.append([number,i])
+#         return int(total_num/self.batch_size),locs
+#
+#     def load_X_Y_test_batch_num(self):
+#         total_num = 0
+#         locs=[]
+#         for number in self.test_numbers:
+#             for i in range(len(self.mask[number])):
+#                 total_num = total_num + 1
+#                 locs.append([number,i])
+#         return int(total_num / self.batch_size),locs
+#
+#     def shuffle_X_Y_pairs(self):
+#         train_locs_new=[]
+#         test_locs_new=[]
+#         trains=self.train_locs
+#         tests=self.test_locs
+#         self.train_batch_index = 0
+#         train_index = range(len(trains))
+#         test_index = range(len(tests))
+#         shuffle(train_index)
+#         shuffle(test_index)
+#         for i in train_index:
+#             train_locs_new.append(trains[i])
+#         for j in test_index:
+#             test_locs_new.append(tests[j])
+#         self.train_locs=train_locs_new
+#         self.test_locs=test_locs_new
+#
+#     def load_X_Y_voxel_train_next_batch(self):
+#         temp_locs=self.train_locs[self.batch_size*self.train_batch_index:self.batch_size*(self.train_batch_index+1)]
+#         X_data_voxels=[]
+#         Y_data_voxels=[]
+#         for pair in temp_locs:
+#             X_data_voxels.append(self.dicom_origin[pair[0]][pair[1]])
+#             Y_data_voxels.append(self.mask[pair[0]][pair[1]])
+#         self.train_batch_index += 1
+#         X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
+#         Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2],self.class_num],np.float32)
+#         for i in range(len(X_data_voxels)):
+#             temp_X = X_data_voxels[i][:,:,:]
+#             shape_X = np.shape(temp_X)
+#             X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_data_voxels[i][:,:,:]
+#
+#             temp_y = Y_data_voxels[i]["artery"][:,:,:]
+#             shape_Y = np.shape(temp_y)
+#             Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],0] = Y_data_voxels[i]["artery"][:, :, :]
+#             Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],1] = Y_data_voxels[i]["airway"][:, :, :]
+#             Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2],2] = Y_data_voxels[i]["background"][:, :, :]
+#         return X_data,Y_data
+#
+#     def load_X_Y_voxel_test_next_batch(self,fix_sample=False):
+#         if fix_sample:
+#             random.seed(45)
+#         idx = random.sample(range(len(self.test_locs)), self.batch_size)
+#         X_test_voxels_batch=[]
+#         Y_test_voxels_batch=[]
+#         for i in idx:
+#             temp_pair=self.test_locs[i]
+#             X_test_voxels_batch.append(self.dicom_origin[temp_pair[0]][temp_pair[1]])
+#             Y_test_voxels_batch.append(self.mask[temp_pair[0]][temp_pair[1]])
+#         X_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2]],np.float32)
+#         Y_data = np.zeros([self.batch_size,self.data_size[0],self.data_size[1],self.data_size[2],self.class_num],np.float32)
+#         for i in range(len(X_test_voxels_batch)):
+#             temp_X = X_test_voxels_batch[i][:, :, :]
+#             shape_X = np.shape(temp_X)
+#             X_data[i, :shape_X[0], :shape_X[1], :shape_X[2]] = X_test_voxels_batch[i][:, :, :]
+#
+#             temp_y = Y_test_voxels_batch[i]["artery"][:, :, :]
+#             shape_Y = np.shape(temp_y)
+#             Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 0] = Y_test_voxels_batch[i]["artery"][:, :, :]
+#             Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 1] = Y_test_voxels_batch[i]["airway"][:, :, :]
+#             Y_data[i, :shape_Y[0], :shape_Y[1], :shape_Y[2], 2] = Y_test_voxels_batch[i]["background"][:, :, :]
+#         return X_data,Y_data
+#
+#     ###################  check datas
+#     def check_data(self):
+#         fail_list = []
+#         tag = True
+#         for pair in self.train_locs:
+#             test_array = np.zeros(self.data_size,np.uint8)
+#             for name in self.mask_names:
+#                 test_array = test_array + self.mask[pair[0]][pair[1]][name]
+#             test_array = test_array + self.mask[pair[0]][pair[1]]["background"]
+#             if np.max(test_array) == np.min(test_array) ==1:
+#                 tag = True
+#             else:
+#                 tag = False
+#                 fail_list.append(pair)
+#         for pair in self.test_locs:
+#             test_array = np.zeros(self.data_size, np.uint8)
+#             for name in self.mask_names:
+#                 test_array = test_array + self.mask[pair[0]][pair[1]][name]
+#             test_array = test_array + self.mask[pair[0]][pair[1]]["background"]
+#             if np.max(test_array) == np.min(test_array) == 1:
+#                 tag = True
+#             else:
+#                 tag = False
+#                 fail_list.append(pair)
+#                 print "=============================================="
+#         if tag:
+#             print "checked!"
+#         else:
+#             print "some are failed"
+#             for item in fail_list:
+#                 print item

@@ -84,11 +84,15 @@ class Network:
             vox_sig_modified = tf.maximum(vox_sig - threshold, 0.01)
         return vox_sig,vox_sig_modified,vox_no_sig
 
-    def Concat(self,inputs,axis,size,name):
+    def Concat(self,inputs,axis,size,name,training):
         with tf.variable_scope(name):
             concat_input = tf.concat([elem for elem in inputs],axis=axis,name="concat_input")
-            concat_conv = tools.Ops.conv3d(concat_input,k=3,out_c=size,str=1,name="concat_conv")
+            concat_bn = tools.Ops.batch_norm(concat_input, "concat_bn", training)
+            concat_relu = tools.Ops.xxlu(concat_bn, "relu_concat")
+            concat_conv = tools.Ops.conv3d(concat_relu,k=3,out_c=size,str=1,name="concat_conv")
         return concat_conv
+
+
 
 class GAN(Network):
     def __init__(self, confPath = ""):
@@ -103,9 +107,9 @@ class GAN(Network):
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.DownSample(X_input,"down_sample_1",2,training,original*1)
         dense_1 = self.DenseBlock(down_1,"dense_block_1",dense_layer_num,growth,training)
-        down_2 = self.DownSample(dense_1,"down_sample_2",2,training,original*2)
+        down_2 = self.DownSample(dense_1,"down_sample_2",2,training,original*4)
         dense_2 = self.DenseBlock(down_2,"dense_block_2",dense_layer_num,growth,training)
-        down_3 = self.DownSample(dense_2,"down_sample_3",2,training,original*4)
+        down_3 = self.DownSample(dense_2,"down_sample_3",2,training,original*8)
 
         dense_3 = self.DenseBlock(down_3,"dense_block_3",dense_layer_num,growth,training)
         mid_input = self.Concat([dense_3,
@@ -113,22 +117,22 @@ class GAN(Network):
                                   self.DownSample(dense_1, "cross_2", 4, training, original),
                                   self.DownSample(X_input, "cross_3", 8, training, original),
                                   ],
-                                 axis=4,size=original*6,name="concat_up_mid")
+                                 axis=4,size=original*6,name="concat_up_mid", training = training)
         dense_4 = self.DenseBlock(mid_input,"dense_block_4",dense_layer_num,growth,training)
 
-        up_input_1 = self.Concat([down_3,dense_4],axis=4,size=original*8,name = "up_input_1")
-        up_1 = self.UpSample(up_input_1,"up_sample_1",2,training,original*4)
+        up_input_1 = self.Concat([down_3,dense_4],axis=4,size=original*8,name = "up_input_1", training = training)
+        up_1 = self.UpSample(up_input_1,"up_sample_1",2,training,original*8)
 
-        dense_input_5 = self.Concat([up_1,dense_2],axis=4,size=original*4,name = "dense_input_5")
+        dense_input_5 = self.Concat([up_1,dense_2],axis=4,size=original*4,name = "dense_input_5", training = training)
         dense_5 = self.DenseBlock(dense_input_5,"dense_block_5",dense_layer_num,growth,training)
 
-        up_input_2 = self.Concat([dense_5,down_2],axis=4,size=original*6,name = "up_input_2")
-        up_2 = self.UpSample(up_input_2,"up_sample_2",2,training,original*2)
+        up_input_2 = self.Concat([dense_5,down_2],axis=4,size=original*6,name = "up_input_2", training = training)
+        up_2 = self.UpSample(up_input_2,"up_sample_2",2,training,original*4)
 
-        dense_input_6 = self.Concat([up_2,dense_1],axis=4,size=original*2,name = "dense_input_6")
+        dense_input_6 = self.Concat([up_2,dense_1],axis=4,size=original*2,name = "dense_input_6", training = training)
         dense_6 = self.DenseBlock(dense_input_6,"dense_block_6",dense_layer_num,growth,training)
 
-        up_input_3 = self.Concat([dense_6,down_1],axis=4,size=original*6,name = "up_input_3")
+        up_input_3 = self.Concat([dense_6,down_1],axis=4,size=original*6,name = "up_input_3", training = training)
         up_3 = self.UpSample(up_input_3,"up_sample_3",2,training,original*1)
 
         predict_input = self.Concat([up_3,
@@ -140,7 +144,7 @@ class GAN(Network):
                                      self.UpSample(mid_input, "cross_9", 8, training, original),
                                      self.UpSample(dense_3, "cross_10", 8, training, original)],
                                     axis=4,
-                                    size=original * 4, name="predict_input")
+                                    size=original * 8, name="predict_input", training = training)
         vox_sig, vox_sig_modified, vox_no_sig = self.Predict(predict_input, "predict", training, threshold)
 
         return vox_sig, vox_sig_modified, vox_no_sig
@@ -151,17 +155,17 @@ class GAN(Network):
             Y = tf.reshape(Y, [self.batch_size, self.data_shape[0], self.data_shape[1], self.data_shape[2], 1])
             # layer = tf.concat([X, Y], axis=4)
             layer = X*Y
-            c_d = [1, 2, 64, 128, 256, 512]
-            s_d = [0, 2, 2, 2, 2, 2]
+            c_d = [1, 32, 64, 128, 256]
+            s_d = [0, 2, 2, 2, 2]
             layers_d = []
             layers_d.append(layer)
         with tf.variable_scope("down_sample"):
-            for i in range(1,6,1):
-                layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_1'+str(i))
+            for i in range(1,5,1):
                 if i!=5:
-                    layer = tools.Ops.xxlu(layer, name='lrelu')
                     # batch normal layer
-                    layer = tools.Ops.batch_norm(layer, 'bn_up' + str(i), training=training)
+                    layer = tools.Ops.batch_norm(layers_d[-1], 'bn_up' + str(i), training=training)
+                    layer = tools.Ops.xxlu(layer, name='lrelu')
+                layer = tools.Ops.conv3d(layer,k=4,out_c=c_d[i],str=s_d[i],name='d_1'+str(i))
                 layers_d.append(layer)
         with tf.variable_scope("flating"):
             y = tf.reshape(layers_d[-1], [self.batch_size, -1])

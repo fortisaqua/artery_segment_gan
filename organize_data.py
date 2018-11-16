@@ -79,39 +79,6 @@ def get_organized_data_fixed_2D(meta_path, type, half_size):
 #         ret = ret[0:input_size[0],0:input_size[1],:]
 #     return ret
 
-def get_organized_data_common(meta_path, type, half_size,input_size):
-    range_type=1
-    dicom_datas = dict()
-    clipped_datas = dict()
-    pickle_readier = open(meta_path)
-    meta_data = pickle.load(pickle_readier)
-    for number, dataset in meta_data['matrixes'].items():
-        try:
-            patient_data = sio.loadmat(dataset['PATIENT_DICOM'])
-            mask_data = sio.loadmat(dataset[type])
-            original_array = patient_data['original_resized']
-            mask = mask_data[type + '_mask_resized']
-            dicom_datas[number] = list()
-            clipped_datas[number] = list()
-            shape = np.shape(mask)
-            # get the binary mask
-            mask = np.int8(mask > 0)
-            if np.max(mask) <= 0:
-                continue
-            # get the valid mask area
-            begin, end = get_range(mask,range_type)
-            print "valid area: ", begin, ":", end
-            for i in range(begin, end, half_size/2):
-                origin_slice = original_array[:, :, i - half_size:i + half_size]
-                clip_slice = mask[:, :, i - half_size:i + half_size]
-                if not 0 in np.shape(origin_slice) and not 0 in np.shape(clip_slice) and np.sum(np.float32(clip_slice))/(128.0*128*half_size*2)>0.001:
-                    if np.shape(origin_slice)[2] == half_size * 2 and np.shape(clip_slice)[2] == half_size * 2:
-                        dicom_datas[number].append(origin_slice)
-                        clipped_datas[number].append(clip_slice)
-        except Exception, e:
-            print e
-    return dicom_datas, clipped_datas
-
 def get_organized_data(meta_path, single_size,epoch,train_amount):
     rand = random.Random()
     dicom_datas = dict()
