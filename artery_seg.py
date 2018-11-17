@@ -1,15 +1,12 @@
 import os
 import shutil
 import tensorflow as tf
-import scipy.io
 import tools
 import numpy as np
 import time
-import test
 import SimpleITK as ST
-from dicom_read import read_dicoms
-import gc
-import utils as ut
+from chaos import utils as ut
+
 # global variables
 ###############################################################
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"

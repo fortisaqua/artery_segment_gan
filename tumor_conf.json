@@ -1,9 +1,11 @@
 {"testStep": 20,
   "resultPath": "/opt/deepLearningOutput/livertumor/periodical_result/",
   "predictThreshold": 0.6,
-  "sumPathTest": "/opt/deepLearningOutput/livertumor/test_sum/",
+  "foregoundThreshold": 0.05,
+  "sumPathTest": "/opt/deepLearningOutput/livertumor/test_sum_",
   "updateEpoch": 5,
   "blockShape": [128, 128, 32],
+  "sampleStep": [128, 64, 16],
   "network": {"generatorOriginSize": 16, "denseBlockDepth": 3, "denseBlockGrowth": 12},
   "batchSize": 2,
   "metaDataPath": "/opt/artery_extraction/data_meta_livertumor.pkl",
@@ -20,5 +22,6 @@
   "decayEpoch": 10,
   "decayRate": 0.9,
   "testEpoch": 1,
-  "testDataName": ["3Dircadb1.17", "3Dircadb1.6"]
+  "testDataName": ["3Dircadb1.9", "3Dircadb1.6"],
+  "evaluateIndicate": {"IOU" : "Intersection over Union","SA" : "Segment Accuracy","OS" : "Over Segment Rate","UR" : "Under Segment Rate"}
 }

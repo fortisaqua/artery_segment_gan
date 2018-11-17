@@ -5,49 +5,51 @@ import numpy as np
 import os, pickle
 from random import shuffle
 import scipy.io as sio
+from evaluate import Evaluator
 
 class Data_block:
     # single input data block
     def __init__(self,ranger,data_array):
-        self.ranger=ranger
-        self.data_array=data_array
-
+        self.ranger = ranger
+        self.data_array = data_array
+        self.shape = np.shape(data_array)
     def get_range(self):
         return self.ranger
 
-    def load_data(self):
+    def get_data(self):
         return self.data_array
 
-class Test_data():
+    def get_shape(self):
+        return self.shape
+
+class TestData:
     # load data and translate to original array
-    def __init__(self,data,block_shape,type):
-        if 'dicom_data' in type:
-            self.img = read_dicoms(data)
-        elif 'vtk_data' in type:
-            self.img = data
-        self.space = self.img.GetSpacing()
-        self.image_array = ST.GetArrayFromImage(self.img)
-        self.image_array = np.transpose(self.image_array,[2,1,0])
+    def __init__(self,data, blockShape, evaluator, testName, sampleStep):
+        print "test data: ", testName
+        self.Name = testName
+        self.image_array = data["original"]
+        self.space = data["spacing"]
+        self.mask_array = data["mask"]
         self.image_shape = np.shape(self.image_array)
-        #  if "airway" in type:
-        #      self.image_array = np.float32(self.image_array <= 0) * self.image_array
-        print np.min(self.image_array)
-        print np.max(self.image_array)
-        self.block_shape=block_shape
+        self.blockShape=blockShape
         self.steps = list()
-        for i in range(len(block_shape)):
-            self.steps.append(block_shape[i])
+        for i in range(len(blockShape)):
+            self.steps.append(blockShape[i])
         # print self.steps
         # print self.block_shape
-        self.steps[2] = self.steps[2] / 2
-        self.steps[0] = self.steps[0] / 2
-        self.steps[1] = self.steps[1] / 2
+        self.steps= sampleStep
+        self.judgeThreshold = 1.0
+        for i in range(len(sampleStep)):
+            self.judgeThreshold *= (self.blockShape[i] * 1.0) / (sampleStep[i] * 1.0)
+        self.judgeThreshold = self.judgeThreshold *3 /4
         self.blocks=dict()
         self.results=dict()
-        print self.steps
-        print self.block_shape
-        print "maximum value of original data : ",np.max(self.image_array)
-        print "minimum value of original data : ",np.min(self.image_array)
+        print "\tsample step : ", self.steps
+        print "\tsample shape : ", self.blockShape
+        self.evaluator = evaluator
+        print "\tmaximum value of original data : ",np.max(self.image_array)
+        print "\tminimum value of original data : ",np.min(self.image_array)
+        self.organize_blocks()
         # self.output_origin()
 
     def output_origin(self,output_dir):
@@ -68,12 +70,12 @@ class Test_data():
             for j in range(0,original_shape[1],self.steps[1]):
                 for k in range(0,original_shape[2],self.steps[2]):
                     if i<original_shape[0] and j<original_shape[1] and k<original_shape[2]:
-                        block_array = self.image_array[i:i+self.block_shape[0],j:j+self.block_shape[1],k:k+self.block_shape[2]]
+                        block_array = self.image_array[i:i+self.blockShape[0],j:j+self.blockShape[1],k:k+self.blockShape[2]]
                         block_shape = np.shape(block_array)
                         ranger=[i,i+block_shape[0],j,j+block_shape[1],k,k+block_shape[2]]
-                        this_block=Data_block(ranger,self.image_array[i:i+self.block_shape[0],j:j+self.block_shape[1],k:k+self.block_shape[2]])
-                        self.blocks[block_num]=this_block
+                        self.blocks[block_num]=Data_block(ranger,block_array)
                         block_num+=1
+        print "got ",len(self.blocks)," blocks to be calculated"
 
     def upload_result(self,block_num,result_array):
         ranger = self.blocks[block_num].get_range()
@@ -98,36 +100,45 @@ class Test_data():
                 ymax=ranger[3]
                 zmin=ranger[4]
                 zmax=ranger[5]
-                temp_result = self.results[number].load_data()[:,:,:,0]
+                temp_result = self.results[number].get_data()[:,:,:,0]
                 # temp_shape = np.shape(temp_result)
-                ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
+                ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[ : xmax-xmin, : ymax-ymin, : zmax-zmin]
             except Exception,e:
-                print np.shape(self.results[number].load_data()[:,:,:,0]),self.results[number].get_range()
+                print np.shape(self.results[number].get_data()[:,:,:,0]),self.results[number].get_range()
         print "maximum value of predicted mask : ",np.max(ret)
         print "minimum value of predicted mask : ",np.min(ret)
-        return np.float32(ret>6)
+        self.test_result_array = np.float32(ret > self.judgeThreshold)
 
-    def get_result_(self):
-        ret=np.zeros(self.image_shape,np.float32)
-        for number in self.results.keys():
-            try:
-                ranger=self.results[number].get_range()
-                xmin=ranger[0]
-                xmax=ranger[1]
-                ymin=ranger[2]
-                ymax=ranger[3]
-                zmin=ranger[4]
-                zmax=ranger[5]
-                temp_result = self.results[number].load_data()[:,:,:]
-                # temp_shape = np.shape(temp_result)
-                temp1 = ret[xmin:xmax,ymin:ymax,zmin:zmax]
-                temp2 = temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
-                ret[xmin:xmax,ymin:ymax,zmin:zmax]+=temp_result[:xmax-xmin,:ymax-ymin,:zmax-zmin]
-            except Exception,e:
-                print np.shape(self.results[number].load_data()[:,:,:]),self.results[number].get_range()
-        return np.float32(ret>2)
+    def post_process(self, edge_thickness):
+        r_s = np.shape(self.test_result_array)  # result shape
+        e_t = edge_thickness  # edge thickness
+        postProcessedArray = np.zeros(r_s, np.float32)
+        postProcessedArray[e_t:r_s[0] - e_t, e_t:r_s[1] - e_t, : ] += \
+            self.test_result_array[e_t:r_s[0] - e_t, e_t:r_s[1] - e_t, : ]
+        print np.max(postProcessedArray)
+        print np.min(postProcessedArray)
+        self.test_result_array = postProcessedArray
 
-class Data:
+    def output_img(self, epoch, test_results_dir):
+        final_img = ST.GetImageFromArray(np.transpose(self.test_result_array, [2, 1, 0]))
+        final_img.SetSpacing(self.space)
+        print "writing full testing result"
+        if not os.path.exists(test_results_dir):
+            os.makedirs(test_results_dir)
+        print test_results_dir + "test_result_" + str(epoch) + '.vtk'
+        ST.WriteImage(final_img, test_results_dir + "test_result_" + str(epoch) + '.vtk')
+
+    def get_evaluate(self, placeHolders):
+        evaluateValues = self.evaluator.Evaluate(self.mask_array, self.test_result_array, placeHolders.keys())
+        print "Evaluate Values: "
+        for key,value in evaluateValues.items():
+            print key, " : ", value
+        feedDict = {}
+        for key,pHolder in placeHolders.items():
+            feedDict[pHolder] = evaluateValues[key]
+        return feedDict
+
+class TrainData:
     def __init__(self,config,epoch):
         self.config = config
         self.train_batch_index = 0
@@ -202,6 +213,7 @@ class Data:
         accept_zeros = rand.sample(to_be_trained, 1)
         # for i in range(8):
         #     accept_zeros = to_be_trained[accept_zeros[i]]
+        foregoundThreshold = self.config["foregoundThreshold"] * (1 - epoch * 1.0 / self.config["maxEpoch"])
         for number, data_dir in meta_data.items():
             if number in to_be_trained:
                 print number
@@ -219,23 +231,17 @@ class Data:
                                     single_size[2] / 2 < data_shape[2]:
                                 clipped_mask = mask_array[i:i + single_size[0], j:j + single_size[1],
                                                k:k + single_size[2]]
-                                if np.sum(np.float32(clipped_mask)) / (single_size[0] * single_size[1] * single_size[2]) \
-                                        <= (0.05 * (1 - epoch * 1.0 / 2000)) and number in accept_zeros:
-                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1],
-                                                    k:k + single_size[2]]
+                                voxelArea = single_size[0] * single_size[1] * single_size[2]
+                                if np.sum(np.float32(clipped_mask)) / voxelArea <= foregoundThreshold \
+                                        and number in accept_zeros:
+                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
                                     dicom_datas[number].append(clipped_dicom)
                                     mask_datas[number].append(clipped_mask)
-                                elif np.sum(np.float32(clipped_mask)) / (single_size[0] * single_size[1] * single_size[2]) \
-                                        > (0.05 * (1 - epoch * 1.0 / 2000)):
-                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1],
-                                                    k:k + single_size[2]]
+                                elif np.sum(np.float32(clipped_mask)) / voxelArea > foregoundThreshold:
+                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
                                     dicom_datas[number].append(clipped_dicom)
                                     mask_datas[number].append(clipped_mask)
-                            # clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
-                            # dicom_datas[number].append(clipped_dicom)
-                            # mask_datas[number].append(clipped_mask)
         return dicom_datas, mask_datas, accept_zeros
-
 
     def load_X_Y_test_batch_num(self):
         total_num = 0
@@ -328,9 +334,9 @@ class Data:
             else:
                 tag=False
                 fail_list.append(pair)
-                print shape1
-                print shape2
-                print "=============================================="
+                # print shape1
+                # print shape2
+                # print "=============================================="
         if tag:
             print "checked!"
         else:

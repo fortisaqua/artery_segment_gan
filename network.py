@@ -1,5 +1,5 @@
 from configure import Condifure
-from data import Data
+from data import TrainData
 import tensorflow as tf
 import tools,os
 
@@ -9,18 +9,15 @@ class Network:
         self.conf = self.configure.meta
         self.blockShape = self.conf["blockShape"]
         self.batch_size = self.conf["batchSize"]
-        self.data_shape = self.conf["blockShape"]
         # epoch_walked/re_example_epoch
 
     def checkPaths(self):
-        if not os.path.exists(self.conf.meta["resultPath"]):
-            os.makedirs(self.conf.meta["resultPath"])
-        if not os.path.exists(self.conf.meta["sumPathTest"]):
-            os.makedirs(self.conf.meta["sumPathTest"])
-        if not os.path.exists(self.conf.meta["modelPath"]):
-            os.makedirs(self.conf.meta["modelPath"])
-        if not os.path.exists(self.conf.meta["sumPathTrain"]):
-            os.makedirs(self.conf.meta["sumPathTrain"])
+        if not os.path.exists(self.conf["resultPath"]):
+            os.makedirs(self.conf["resultPath"])
+        if not os.path.exists(self.conf["modelPath"]):
+            os.makedirs(self.conf["modelPath"])
+        if not os.path.exists(self.conf["sumPathTrain"]):
+            os.makedirs(self.conf["sumPathTrain"])
 
     def DenseBlock(self,X,name,depth,growth,training):
         with tf.variable_scope(name):
@@ -97,8 +94,9 @@ class Network:
 class GAN(Network):
     def __init__(self, confPath = ""):
         Network.__init__(self, confPath)
-        self.data = Data(self.conf,
+        self.data = TrainData(self.conf,
                          self.conf["epochWalked"]/self.conf["updateEpoch"])
+        self.data.check_data()
 
     def ae_u(self,X,training,batch_size,threshold):
         original=self.conf["network"]["generatorOriginSize"]
@@ -107,9 +105,9 @@ class GAN(Network):
         X_input = self.Input(X,"input",batch_size,original,training)
         down_1 = self.DownSample(X_input,"down_sample_1",2,training,original*1)
         dense_1 = self.DenseBlock(down_1,"dense_block_1",dense_layer_num,growth,training)
-        down_2 = self.DownSample(dense_1,"down_sample_2",2,training,original*4)
+        down_2 = self.DownSample(dense_1,"down_sample_2",2,training,original*3)
         dense_2 = self.DenseBlock(down_2,"dense_block_2",dense_layer_num,growth,training)
-        down_3 = self.DownSample(dense_2,"down_sample_3",2,training,original*8)
+        down_3 = self.DownSample(dense_2,"down_sample_3",2,training,original*6)
 
         dense_3 = self.DenseBlock(down_3,"dense_block_3",dense_layer_num,growth,training)
         mid_input = self.Concat([dense_3,
@@ -121,13 +119,13 @@ class GAN(Network):
         dense_4 = self.DenseBlock(mid_input,"dense_block_4",dense_layer_num,growth,training)
 
         up_input_1 = self.Concat([down_3,dense_4],axis=4,size=original*8,name = "up_input_1", training = training)
-        up_1 = self.UpSample(up_input_1,"up_sample_1",2,training,original*8)
+        up_1 = self.UpSample(up_input_1,"up_sample_1",2,training,original*6)
 
         dense_input_5 = self.Concat([up_1,dense_2],axis=4,size=original*4,name = "dense_input_5", training = training)
         dense_5 = self.DenseBlock(dense_input_5,"dense_block_5",dense_layer_num,growth,training)
 
         up_input_2 = self.Concat([dense_5,down_2],axis=4,size=original*6,name = "up_input_2", training = training)
-        up_2 = self.UpSample(up_input_2,"up_sample_2",2,training,original*4)
+        up_2 = self.UpSample(up_input_2,"up_sample_2",2,training,original*3)
 
         dense_input_6 = self.Concat([up_2,dense_1],axis=4,size=original*2,name = "dense_input_6", training = training)
         dense_6 = self.DenseBlock(dense_input_6,"dense_block_6",dense_layer_num,growth,training)
@@ -151,8 +149,8 @@ class GAN(Network):
 
     def dis(self, X, Y,training):
         with tf.variable_scope("input"):
-            X = tf.reshape(X, [self.batch_size, self.data_shape[0], self.data_shape[1], self.data_shape[2], 1])
-            Y = tf.reshape(Y, [self.batch_size, self.data_shape[0], self.data_shape[1], self.data_shape[2], 1])
+            X = tf.reshape(X, [self.batch_size, self.blockShape[0], self.blockShape[1], self.blockShape[2], 1])
+            Y = tf.reshape(Y, [self.batch_size, self.blockShape[0], self.blockShape[1], self.blockShape[2], 1])
             # layer = tf.concat([X, Y], axis=4)
             layer = X*Y
             c_d = [1, 32, 64, 128, 256]
@@ -161,12 +159,13 @@ class GAN(Network):
             layers_d.append(layer)
         with tf.variable_scope("down_sample"):
             for i in range(1,5,1):
-                if i!=5:
-                    # batch normal layer
-                    layer = tools.Ops.batch_norm(layers_d[-1], 'bn_up' + str(i), training=training)
-                    layer = tools.Ops.xxlu(layer, name='lrelu')
-                layer = tools.Ops.conv3d(layer,k=4,out_c=c_d[i],str=s_d[i],name='d_1'+str(i))
-                layers_d.append(layer)
+                with tf.variable_scope("down_sample_" + str(i)):
+                    if i!=5:
+                        # batch normal layer
+                        layer = tools.Ops.batch_norm(layers_d[-1], 'bn_up' + str(i), training=training)
+                        layer = tools.Ops.xxlu(layer, name='lrelu')
+                    layer = tools.Ops.conv3d(layer,k=4,out_c=c_d[i],str=s_d[i],name='d_1'+str(i))
+                    layers_d.append(layer)
         with tf.variable_scope("flating"):
             y = tf.reshape(layers_d[-1], [self.batch_size, -1])
         return tf.nn.sigmoid(y)
