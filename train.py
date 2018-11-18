@@ -244,12 +244,12 @@ class GANTrainier(GAN):
             # start training loop
             self.global_step = self.conf["stepWalked"]
             for epoch in range(self.epoch_walked, self.MAX_EPOCH):
-                # if epoch % self.conf["testEpoch"] == 0:
-                #     for tData in self.test_datas:
-                #         self.full_testing(tData, sess, epoch)
-                # if epoch < self.conf["discriminatorTrainEpoch"]:
-                #     self.blockTrainD(sess = sess, epoch = epoch)
-                # else:
+                if epoch % self.conf["testEpoch"] == 0:
+                    for tData in self.test_datas:
+                        self.full_testing(tData, sess, epoch)
+                if epoch < self.conf["discriminatorTrainEpoch"]:
+                    self.blockTrainD(sess = sess, epoch = epoch)
+                else:
                     self.blockTrainGD(sess = sess, epoch = epoch)
 
     def train(self):
