@@ -96,14 +96,13 @@ class GANTrainier(GAN):
 
     def blockTestGD(self, sess, epoch):
         X_test_batch, Y_test_batch = self.data.load_X_Y_voxel_test_next_batch(fix_sample=False)
-        g_loss_t, gan_g_loss_t, gan_d_loss_t, Y_test_pred, Y_test_modi, Y_test_pred_nosig, train_summary = \
+        g_loss_t, gan_g_loss_t, gan_d_loss_t, Y_test_pred, Y_test_modi, Y_test_pred_nosig = \
             sess.run([self.cross_entropy, self.g_loss, self.d_loss, self.Y_pred,
-                      self.Y_pred_modi, self.Y_pred_nosig, self.train_merge_op],
+                      self.Y_pred_modi, self.Y_pred_nosig],
                      feed_dict={self.X: X_test_batch,
                                 self.threshold: self.upper_threshold,
                                 self.Y: Y_test_batch, self.training: False,
                                 self.w: self.weight_for})
-        self.sum_writer_train.add_summary(train_summary, global_step=self.global_step)
         predict_result = np.float32(Y_test_modi > 0.01)
         predict_result = np.reshape(predict_result,
                                     [self.batch_size, self.blockShape[0], self.blockShape[1],
@@ -120,7 +119,7 @@ class GANTrainier(GAN):
         print "epoch:", epoch, " global step: ", self.global_step, "\nIOU accuracy: ", accuracy, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
         print "weight of foreground : ", self.weight_for
         print "upper threshold of testing", (self.conf["predictThreshold"])
-        if accuracy > 0.95 and self.showTimesUsed < self.conf["showTimes"]:
+        if accuracy > 0.95 and self.showTimesUsed <= self.conf["showTimes"]:
             self.recordPics(origin=X_test_batch[self.batch_size / 2, :, :, self.blockShape[2] / 2],
                           mask=Y_test_batch[self.batch_size / 2, :, :, self.blockShape[2] / 2],
                           predict=predict_probablity[self.batch_size / 2, :, :, self.blockShape[2] / 2])
@@ -147,26 +146,23 @@ class GANTrainier(GAN):
                 X_train_batch, Y_train_batch = self.data.load_X_Y_voxel_train_next_batch()
                 # calculate loss value
                 # print "calculate begin"
-                gan_d_loss_c, = sess.run([self.d_loss],
-                                         feed_dict={self.X: X_train_batch, self.Y: Y_train_batch, self.training: False,
-                                                    self.w: self.weight_for, self.threshold: self.upper_threshold})
-                cross_entropy_c, gan_g_loss_c = sess.run([self.cross_entropy, self.g_loss],
-                                                  feed_dict={self.X: X_train_batch, self.Y: Y_train_batch,
-                                                             self.training: False, self.w: self.weight_for,
-                                                             self.threshold: self.upper_threshold})
                 # print "calculate ended"
                 if epoch % self.decay_step == 0 and epoch > self.epoch_walked and i == 0:
                     self.learning_rate_g = self.learning_rate_g * self.power
-                sess.run([self.ae_g_optim],
-                         feed_dict={self.X: X_train_batch, self.threshold: self.upper_threshold, self.Y: Y_train_batch,
-                                    self.lr: self.learning_rate_g, self.training: True, self.w: self.weight_for})
-                sess.run([self.dis_optim], feed_dict={self.X: X_train_batch, self.threshold: self.upper_threshold,
-                                                      self.Y: Y_train_batch, self.lr: self.learning_rate_g,
-                                                      self.training: True, self.w: self.weight_for})
+                sess.run([self.dis_optim, self.ae_g_optim],
+                         feed_dict={self.X: X_train_batch, self.threshold: self.upper_threshold,
+                                    self.Y: Y_train_batch, self.lr: self.learning_rate_g,
+                                    self.training: True, self.w: self.weight_for})
                 # print "training ended"
                 self.global_step += 1
                 # output some results
                 if self.global_step % self.conf["recordStep"] == 0:
+                    cross_entropy_c, gan_g_loss_c, gan_d_loss_c, train_summary \
+                        = sess.run([self.cross_entropy, self.g_loss, self.d_loss, self.train_merge_op],
+                                   feed_dict={self.X: X_train_batch, self.Y: Y_train_batch,
+                                              self.training: False, self.w: self.weight_for,
+                                              self.threshold: self.upper_threshold})
+                    self.sum_writer_train.add_summary(train_summary, global_step=self.global_step)
                     print "epoch:", epoch, " i:", i, " cross entropy loss:", cross_entropy_c, " gan g loss:", gan_g_loss_c, " gan d loss:", gan_d_loss_c, " learning rate: ", self.learning_rate_g
                 if self.global_step % self.conf["testStep"] == 0 and epoch % 1 == 0:
                     try:
