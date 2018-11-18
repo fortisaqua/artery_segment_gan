@@ -149,7 +149,7 @@ class TrainData:
         self.sample_amount = config["data"]["sampleAmount"]
         self.data_size = config["blockShape"]
 
-        self.train_numbers,self.test_numbers = self.load_X_Y_numbers_special(config["metaDataPath"],self.epoch)
+        self.load_X_Y_numbers_special(config["metaDataPath"],self.epoch)
 
         print "train_numbers:",len(self.train_numbers),"---",self.train_numbers
         print "test_numbers:",len(self.test_numbers),"---",self.test_numbers
@@ -160,22 +160,44 @@ class TrainData:
         self.shuffle_X_Y_pairs()
 
     def load_X_Y_numbers_special(self,meta_path,epoch):
-        self.dicom_origin,self.mask ,zero_numbers= self.get_organized_data(meta_path,self.data_size,epoch,self.sample_amount)
+        rand = random.Random()
+        pickle_reader = open(meta_path)
+        self.meta_data = pickle.load(pickle_reader)
+        # accept_zeros = rand.sample(meta_data.keys(),8)
+        allKeys = self.meta_data.keys()
+        total_keys = []
+        for keyName in allKeys:
+            isTest = False
+            for testName in self.config["testDataName"]:
+                if testName in keyName:
+                    isTest = True
+                    break
+            if not isTest:
+                total_keys.append(keyName)
+        begin = (epoch * (self.sample_amount / 2)) % len(total_keys)
+        end = (epoch * (self.sample_amount / 2) + self.sample_amount) % len(total_keys)
+        if begin < end:
+            self.to_be_trained = total_keys[begin:end]
+        else:
+            self.to_be_trained = total_keys[begin:] + total_keys[:end]
+        self.zero_numbers = rand.sample(self.to_be_trained, 1)
         numbers=[]
         train_numbers=[]
         test_numbers=[]
-        for number in self.mask.keys():
-            if len(self.mask[number])>0:
+        for number in self.to_be_trained:
+            if len(self.to_be_trained)>0:
                 numbers.append(number)
         for i in range(self.test_amount):
             test_number_temp = numbers[random.randint(0,len(numbers)-1)]
-            while test_number_temp in zero_numbers:
+            while test_number_temp in self.zero_numbers:
                 test_number_temp = numbers[random.randint(0, len(numbers) - 1)]
             test_numbers.append(test_number_temp)
         for number in numbers:
             if not number in test_numbers:
                 train_numbers.append(number)
-        return train_numbers,test_numbers
+        self.train_numbers = train_numbers
+        self.test_numbers = test_numbers
+        self.dicom_origin, self.mask = self.get_organized_data(self.data_size, epoch)
 
     def load_X_Y_train_batch_num(self):
         total_num=0
@@ -186,62 +208,42 @@ class TrainData:
                 locs.append([number,i])
         return int(total_num/self.batch_size),locs
 
-    def get_organized_data(self, meta_path, single_size, epoch, train_amount):
-        rand = random.Random()
-        dicom_datas = dict()
-        mask_datas = dict()
-        pickle_reader = open(meta_path)
-        meta_data = pickle.load(pickle_reader)
-        # accept_zeros = rand.sample(meta_data.keys(),8)
-        allKeys = meta_data.keys()
-        total_keys = []
-        for keyName in allKeys:
-            isTest = False
-            for testName in self.config["testDataName"]:
-                if testName in keyName:
-                    isTest = True
-                    break
-            if not isTest:
-                total_keys.append(keyName)
+    def get_organized_data(self, single_size, epoch):
 
-        begin = (epoch * (train_amount / 2)) % len(total_keys)
-        end = (epoch * (train_amount / 2) + train_amount) % len(total_keys)
-        if begin < end:
-            to_be_trained = total_keys[begin:end]
-        else:
-            to_be_trained = total_keys[begin:] + total_keys[:end]
-        accept_zeros = rand.sample(to_be_trained, 1)
         # for i in range(8):
         #     accept_zeros = to_be_trained[accept_zeros[i]]
+        dicom_datas = dict()
+        mask_datas = dict()
         foregoundThreshold = self.config["foregoundThreshold"] * (1 - epoch * 1.0 / self.config["maxEpoch"])
-        for number, data_dir in meta_data.items():
-            if number in to_be_trained:
-                print number
-                zero_counting = 0
-                dataset = sio.loadmat(data_dir)
-                dicom_datas[number] = list()
-                mask_datas[number] = list()
-                original_array = dataset['original']
-                mask_array = dataset['mask']
-                data_shape = np.shape(mask_array)
-                for i in range(0, data_shape[0], single_size[0] / 2):
-                    for j in range(0, data_shape[1], single_size[1] / 2):
-                        for k in range(0, data_shape[2], single_size[2] / 2):
-                            if i + single_size[0] / 2 < data_shape[0] and j + single_size[1] / 2 < data_shape[1] and k + \
-                                    single_size[2] / 2 < data_shape[2]:
-                                clipped_mask = mask_array[i:i + single_size[0], j:j + single_size[1],
-                                               k:k + single_size[2]]
-                                voxelArea = single_size[0] * single_size[1] * single_size[2]
-                                if np.sum(np.float32(clipped_mask)) / voxelArea <= foregoundThreshold \
-                                        and number in accept_zeros:
-                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
-                                    dicom_datas[number].append(clipped_dicom)
-                                    mask_datas[number].append(clipped_mask)
-                                elif np.sum(np.float32(clipped_mask)) / voxelArea > foregoundThreshold:
-                                    clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
-                                    dicom_datas[number].append(clipped_dicom)
-                                    mask_datas[number].append(clipped_mask)
-        return dicom_datas, mask_datas, accept_zeros
+        for number in self.to_be_trained:
+            print number
+            zero_counting = 0
+            data_dir = self.meta_data[number]
+            dataset = sio.loadmat(data_dir)
+            dicom_datas[number] = list()
+            mask_datas[number] = list()
+            original_array = dataset['original']
+            mask_array = np.float32(dataset['mask'] > 0)
+            data_shape = np.shape(mask_array)
+            for i in range(0, data_shape[0], single_size[0] / 2):
+                for j in range(0, data_shape[1], single_size[1] / 2):
+                    for k in range(0, data_shape[2], single_size[2] / 2):
+                        if i + single_size[0] / 2 < data_shape[0] and j + single_size[1] / 2 < data_shape[1] and k + \
+                                single_size[2] / 2 < data_shape[2]:
+                            clipped_mask = mask_array[i:i + single_size[0], j:j + single_size[1],
+                                           k:k + single_size[2]]
+                            voxelArea = single_size[0] * single_size[1] * single_size[2]
+                            if np.sum(np.float32(clipped_mask)) / voxelArea <= foregoundThreshold \
+                                    and number in self.zero_numbers:
+                                clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
+                                dicom_datas[number].append(clipped_dicom)
+                                mask_datas[number].append(clipped_mask)
+                            elif (np.sum(np.float32(clipped_mask)) / voxelArea > foregoundThreshold and number in self.train_numbers)\
+                                    or (np.sum(np.float32(clipped_mask)) / voxelArea >= 2 * foregoundThreshold and number in self.test_numbers):
+                                clipped_dicom = original_array[i:i + single_size[0], j:j + single_size[1], k:k + single_size[2]]
+                                dicom_datas[number].append(clipped_dicom)
+                                mask_datas[number].append(clipped_mask)
+        return dicom_datas, mask_datas
 
     def load_X_Y_test_batch_num(self):
         total_num = 0

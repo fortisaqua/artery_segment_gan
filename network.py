@@ -63,10 +63,10 @@ class Network:
     def Input(self,X,name,batch_size,size,training):
         with tf.variable_scope(name):
             X = tf.reshape(X, [batch_size, self.blockShape[0], self.blockShape[1], self.blockShape[2], 1])
-            conv_input = tools.Ops.conv3d(X, k=3, out_c=size, str=1, name="conv_input")
-            bn_input = tools.Ops.batch_norm(conv_input, "bn_input", training)
+            bn_input = tools.Ops.batch_norm(X, "bn_input", training)
             relu_input = tools.Ops.xxlu(bn_input, "relu_input")
-        return relu_input
+            conv_input = tools.Ops.conv3d(relu_input, k=3, out_c=size, str=1, name="conv_input")
+        return conv_input
 
     def Predict(self,X,name,training,threshold):
         with tf.variable_scope(name):

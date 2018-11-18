@@ -17,6 +17,7 @@ class GANTrainier(GAN):
         GAN.__init__(self, confPath)
         pickle_reader = open(self.conf["metaDataPath"])
         meta_data = pickle.load(pickle_reader)
+        self.showTimesUsed = self.conf["showTimesUsed"]
         self.test_datas = []
         self.test_values = {}
         self.test_merges = {}
@@ -84,6 +85,15 @@ class GANTrainier(GAN):
         self.dis_optim = tf.train.AdamOptimizer(learning_rate=self.lr, beta1=0.9, beta2=0.999, epsilon=1e-8).minimize(
             self.d_loss, var_list=dis_var)
 
+    def recordPics(self, origin, mask, predict):
+        outputDict = {}
+        outputDict["origin"] = origin
+        outputDict["mask"] = mask
+        outputDict["predict"] = predict
+        sio.savemat(self.conf["resultPath"] + "blockShots" + str(self.global_step) + ".mat", outputDict)
+        #TODO: show windows that dynamically show matrixes
+        pass
+
     def blockTestGD(self, sess, epoch):
         X_test_batch, Y_test_batch = self.data.load_X_Y_voxel_test_next_batch(fix_sample=False)
         g_loss_t, gan_g_loss_t, gan_d_loss_t, Y_test_pred, Y_test_modi, Y_test_pred_nosig, train_summary = \
@@ -96,20 +106,25 @@ class GANTrainier(GAN):
         self.sum_writer_train.add_summary(train_summary, global_step=self.global_step)
         predict_result = np.float32(Y_test_modi > 0.01)
         predict_result = np.reshape(predict_result,
-                                    [self.batch_size, self.conf["blockShape"][0], self.conf["blockShape"][1],
-                                     self.conf["blockShape"][2]])
+                                    [self.batch_size, self.blockShape[0], self.blockShape[1],
+                                     self.blockShape[2]])
         print np.max(Y_test_pred)
         print np.min(Y_test_pred)
-        # IOU
         predict_probablity = np.float32((Y_test_modi - 0.01) > 0)
         predict_probablity = np.reshape(predict_probablity,
-                                        [self.batch_size, self.conf["blockShape"][0], self.conf["blockShape"][1],
-                                         self.conf["blockShape"][2]])
+                                        [self.batch_size, self.blockShape[0], self.blockShape[1],
+                                         self.blockShape[2]])
+        # IOU
         accuracy = 2 * np.sum(np.abs(predict_probablity * Y_test_batch)) / np.sum(
             np.abs(predict_result) + np.abs(Y_test_batch))
         print "epoch:", epoch, " global step: ", self.global_step, "\nIOU accuracy: ", accuracy, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
         print "weight of foreground : ", self.weight_for
         print "upper threshold of testing", (self.conf["predictThreshold"])
+        if accuracy > 0.95 and self.showTimesUsed < self.conf["showTimes"]:
+            self.recordPics(origin=X_test_batch[self.batch_size / 2, :, :, self.blockShape[2] / 2],
+                          mask=Y_test_batch[self.batch_size / 2, :, :, self.blockShape[2] / 2],
+                          predict=predict_probablity[self.batch_size / 2, :, :, self.blockShape[2] / 2])
+            self.showTimesUsed += 1
         blockTest_summary = sess.run(self.blockTest_merge_op, feed_dict={self.block_acc: accuracy})
         self.sum_writer_train.add_summary(blockTest_summary, global_step=self.global_step)
 
@@ -151,15 +166,15 @@ class GANTrainier(GAN):
                 # print "training ended"
                 self.global_step += 1
                 # output some results
-                if i % self.conf["recordStep"] == 0:
+                if self.global_step % self.conf["recordStep"] == 0:
                     print "epoch:", epoch, " i:", i, " cross entropy loss:", cross_entropy_c, " gan g loss:", gan_g_loss_c, " gan d loss:", gan_d_loss_c, " learning rate: ", self.learning_rate_g
-                if i % self.conf["testStep"] == 0 and epoch % 1 == 0:
+                if self.global_step % self.conf["testStep"] == 0 and epoch % 1 == 0:
                     try:
                         self.blockTestGD(sess = sess, epoch = epoch)
                     except Exception, e:
                         print e
                 #### model saving
-                if i % self.conf["saveStep"] == 0 and epoch % 1 == 0:
+                if self.global_step % self.conf["saveStep"] == 0 and epoch % 1 == 0:
                     self.saver.save(sess, save_path=self.conf["modelPath"] + 'model.cptk')
                     print "epoch:", epoch, " i:", i, "regular model saved!"
         else:
@@ -233,11 +248,13 @@ class GANTrainier(GAN):
             # start training loop
             self.global_step = self.conf["stepWalked"]
             for epoch in range(self.epoch_walked, self.MAX_EPOCH):
-                if epoch % self.conf["testEpoch"] == 0:
-                    for tData in self.test_datas:
-                        self.full_testing(tData, sess, epoch)
-                self.blockTrainGD(sess = sess, epoch = epoch)
-                # self.blockTrainD(sess = sess, epoch = epoch)
+                # if epoch % self.conf["testEpoch"] == 0:
+                #     for tData in self.test_datas:
+                #         self.full_testing(tData, sess, epoch)
+                # if epoch < self.conf["discriminatorTrainEpoch"]:
+                #     self.blockTrainD(sess = sess, epoch = epoch)
+                # else:
+                    self.blockTrainGD(sess = sess, epoch = epoch)
 
     def train(self):
         # network
@@ -327,7 +344,7 @@ class GANTrainier(GAN):
         if epoch % self.conf["outputEpoch"] == 0:
             testData.output_img(epoch = epoch, test_results_dir = self.conf["resultPath"])
         if epoch == self.conf["outputEpoch"]:
-            mask_img = ST.GetImageFromArray(np.transpose(array_mask, [2, 1, 0]))
+            mask_img = ST.GetImageFromArray(np.transpose(testData.mask_array, [2, 1, 0]))
             mask_img.SetSpacing(testData.space)
             ST.WriteImage(mask_img, self.conf["resultPath"] + 'test_mask.vtk')
 
