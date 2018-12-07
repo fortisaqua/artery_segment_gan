@@ -3,7 +3,7 @@ import PIL.Image as Image
 import scipy.io as sio
 import numpy as np
 
-path = "./material.mat"
+path = "/opt/deepLearningOutput/liver/periodical_result/blockShots13250.mat"
 datas = sio.loadmat(path)
 tag = 1
 plt.figure("block result")

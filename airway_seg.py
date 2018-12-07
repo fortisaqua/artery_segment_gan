@@ -137,7 +137,7 @@ class Network:
             s_d = [0,2,2,2,2,2]
             layers_d =[]
             layers_d.append(layer)
-            for i in range(1,6,1):
+            for i in range(1,5,1):
                 layer = tools.Ops.conv3d(layers_d[-1],k=4,out_c=c_d[i],str=s_d[i],name='d_1'+str(i))
                 if i!=5:
                     layer = tools.Ops.xxlu(layer, name='lrelu')

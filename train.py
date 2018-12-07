@@ -1,5 +1,5 @@
 import os
-from network import GAN
+from network import GAN,GANAirway,GANArtery
 import tensorflow as tf
 import numpy as np
 import tools,gc,time
@@ -34,7 +34,7 @@ class GANTrainier(GAN):
                     self.test_values[testName]["sums"] = {}
                     for eName, description in self.conf["evaluateIndicate"].items():
                         self.test_values[testName]["placeHolders"][eName] = tf.placeholder(tf.float32)
-                        evaluateSum = tf.summary.scalar(description, self.test_values[testName]["placeHolders"][eName])
+                        evaluateSum = tf.summary.scalar(str(description + "_" + testName), self.test_values[testName]["placeHolders"][eName])
                         self.test_values[testName]["sums"][eName] = evaluateSum
                     self.test_merges[testName] = tf.summary.merge([eSum for eSum in self.test_values[testName]["sums"].values()])
                     break
@@ -55,8 +55,9 @@ class GANTrainier(GAN):
         alpha = tf.random_uniform(shape=[self.batch_size, self.blockShape[0] * self.blockShape[1] * self.blockShape[2]],
                                   minval=0.0,maxval=1.0)
         Y_pred_ = tf.reshape(self.Y_pred, shape=[self.batch_size, -1])
-        differences_ = Y_pred_ - Y_
         interpolates = alpha * Y_ + (1 - alpha) * Y_pred_
+        # differences_ = Y_pred_ - Y_
+        # interpolates = Y_ + alpha * differences_
         with tf.variable_scope('discriminator', reuse=True):
             XY_fake_intep = self.dis(self.X, interpolates, self.training)
         gradients = tf.gradients(XY_fake_intep, [interpolates])[0]
@@ -69,8 +70,8 @@ class GANTrainier(GAN):
 
         # generator loss with gan loss
         gan_g_loss = -tf.reduce_mean(self.XY_fake_pair)
-        gan_g_w = 5
-        ae_w = 100 - gan_g_w
+        gan_g_w = self.conf["ganWeight"]
+        ae_w = self.conf["totalWeight"] - gan_g_w
         ae_gan_g_loss = ae_w * cross_entropy + gan_g_w * gan_g_loss
         ae_g_loss_sum = tf.summary.scalar("total loss of generator", ae_gan_g_loss)
         self.g_loss = ae_gan_g_loss
@@ -85,11 +86,14 @@ class GANTrainier(GAN):
         self.dis_optim = tf.train.AdamOptimizer(learning_rate=self.lr, beta1=0.9, beta2=0.999, epsilon=1e-8).minimize(
             self.d_loss, var_list=dis_var)
 
-    def recordPics(self, origin, mask, predict):
+    def recordPics(self, origin, mask, predict, indicDic = None):
         outputDict = {}
         outputDict["origin"] = origin
         outputDict["mask"] = mask
         outputDict["predict"] = predict
+        if not indicDic == None:
+            for key, value in indicDic.items():
+                outputDict[key] = value
         sio.savemat(self.conf["resultPath"] + "blockShots" + str(self.global_step) + ".mat", outputDict)
         #TODO: show windows that dynamically show matrixes
         pass
@@ -114,17 +118,34 @@ class GANTrainier(GAN):
                                         [self.batch_size, self.blockShape[0], self.blockShape[1],
                                          self.blockShape[2]])
         # IOU
-        accuracy = 2 * np.sum(np.abs(predict_probablity * Y_test_batch)) / np.sum(
+        missing = np.float32((Y_test_batch - predict_probablity) > 0)
+        overSeg = np.float32((predict_probablity - Y_test_batch) > 0)
+        blockIOU = 2 * np.sum(np.abs(predict_probablity * Y_test_batch)) / np.sum(
             np.abs(predict_result) + np.abs(Y_test_batch))
-        print "epoch:", epoch, " global step: ", self.global_step, "\nIOU accuracy: ", accuracy, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
+        blockSA = 1 - np.sum(missing) / np.sum(Y_test_batch)
+        blockOS = np.sum(overSeg) / (np.sum(overSeg) + np.sum(Y_test_batch))
+        blockUR = np.sum(missing) / (np.sum(Y_test_batch) + np.sum(overSeg))
+        print "epoch:", epoch, " global step: ", self.global_step, "\ntest ae loss:", g_loss_t, " gan g loss:", gan_g_loss_t, " gan d loss:", gan_d_loss_t
         print "weight of foreground : ", self.weight_for
+        print "IOU: ", blockIOU, " ,SA: ", blockSA, " ,OS: ", blockOS, " UR: ",blockUR
         print "upper threshold of testing", (self.conf["predictThreshold"])
-        if accuracy > 0.95 and self.showTimesUsed <= self.conf["showTimes"]:
+        if blockIOU >= 0.85 and self.showTimesUsed <= self.conf["showTimes"]:
+            recordDict = {}
+            recordDict["IOU"] = blockIOU
+            recordDict["SA"] = blockSA
+            recordDict["OS"] = blockOS
+            recordDict["UR"] = blockUR
             self.recordPics(origin=X_test_batch[self.batch_size / 2, :, :, self.blockShape[2] / 2],
                           mask=Y_test_batch[self.batch_size / 2, :, :, self.blockShape[2] / 2],
-                          predict=predict_probablity[self.batch_size / 2, :, :, self.blockShape[2] / 2])
+                          predict=predict_probablity[self.batch_size / 2, :, :, self.blockShape[2] / 2],
+                            indicDic = recordDict)
+            sio.savemat()
             self.showTimesUsed += 1
-        blockTest_summary = sess.run(self.blockTest_merge_op, feed_dict={self.block_acc: accuracy})
+        blockTest_summary = sess.run(self.blockTest_merge_op, feed_dict={self.blockIOU: blockIOU,
+                                                                         self.blockSA: blockSA,
+                                                                         self.blockOS: blockOS,
+                                                                         self.blockUR: blockUR,
+                                                                         })
         self.sum_writer_train.add_summary(blockTest_summary, global_step=self.global_step)
 
     def blockTrainGD(self, sess, epoch):
@@ -138,7 +159,7 @@ class GANTrainier(GAN):
         if train_amount >= test_amount and train_amount > 0 and test_amount > 0 and \
                 self.data.total_train_batch_num > 0 and self.data.total_test_seq_batch > 0:
             # actual foreground weight
-            self.weight_for = 0.5 + (1 - 1.0 * epoch / self.MAX_EPOCH) * 0.85
+            self.weight_for = 0.5 + (1 - 1.0 * epoch / self.MAX_EPOCH) * 0.35
             self.data.shuffle_X_Y_pairs()
             total_train_batch_num = self.data.total_train_batch_num
             print "total_train_batch_num:", total_train_batch_num
@@ -163,7 +184,15 @@ class GANTrainier(GAN):
                                               self.training: False, self.w: self.weight_for,
                                               self.threshold: self.upper_threshold})
                     self.sum_writer_train.add_summary(train_summary, global_step=self.global_step)
-                    print "epoch:", epoch, " i:", i, " cross entropy loss:", cross_entropy_c, " gan g loss:", gan_g_loss_c, " gan d loss:", gan_d_loss_c, " learning rate: ", self.learning_rate_g
+                    print "epoch:", epoch, " global step:", self.global_step, " cross entropy loss:", cross_entropy_c, " gan g loss:", gan_g_loss_c, " gan d loss:", gan_d_loss_c, " learning rate: ", self.learning_rate_g
+                    if np.isnan(cross_entropy_c) or np.isnan(gan_g_loss_c) or np.isnan(gan_d_loss_c):
+                        print "got nan values"
+                        currentDatas = {"self.X": X_train_batch, "self.Y": Y_train_batch,
+                                        "self.training": False, "self.w": self.weight_for,
+                                        "self.threshold": self.upper_threshold, "cross_entropy_c":cross_entropy_c,
+                                        "gan_g_loss_c":gan_g_loss_c, "gan_d_loss_c":gan_d_loss_c}
+                        sio.savemat("./badData.mat", currentDatas)
+                        exit(1)
                 if self.global_step % self.conf["testStep"] == 0 and epoch % 1 == 0:
                     try:
                         self.blockTestGD(sess = sess, epoch = epoch)
@@ -172,7 +201,7 @@ class GANTrainier(GAN):
                 #### model saving
                 if self.global_step % self.conf["saveStep"] == 0 and epoch % 1 == 0:
                     self.saver.save(sess, save_path=self.conf["modelPath"] + 'model.cptk')
-                    print "epoch:", epoch, " i:", i, "regular model saved!"
+                    print "epoch:", epoch, " global step:", self.global_step, "regular model saved!"
         else:
             print "bad data , next epoch", epoch
 
@@ -209,30 +238,32 @@ class GANTrainier(GAN):
                     gan_d_loss_c, d_summary = sess.run([self.d_loss, self.d_sum],
                                          feed_dict={self.X: X_train_batch, self.Y: Y_train_batch, self.training: False,
                                                     self.w: self.weight_for, self.threshold: self.upper_threshold})
-                    print "epoch:", epoch, " i:", i,  " gan d loss:", gan_d_loss_c, " learning rate: ", self.learning_rate_g
+                    print "epoch:", epoch, " global step:", self.global_step,  " gan d loss:", gan_d_loss_c, " learning rate: ", self.learning_rate_g
                     self.sum_writer_train.add_summary(d_summary, global_step = self.global_step)
                 #### model saving
                 if i % self.conf["saveStep"] == 0 and epoch % 1 == 0:
                     self.saver.save(sess, save_path=self.conf["modelPath"] + 'model.cptk')
-                    print "epoch:", epoch, " i:", i, "regular model saved!"
+                    print "epoch:", epoch, " global step:", self.global_step, "regular model saved!"
         else:
             print "bad data , next epoch", epoch
 
     def trainLoop(self):
         with tf.Session() as sess:
             # define tensorboard writer
-            self.sum_writers_test = {}
+            # self.sum_writers_test = {}
+            self.sum_writers_test = tf.summary.FileWriter(self.conf["sumPathTest"], sess.graph)
             self.sum_writer_train = tf.summary.FileWriter(self.conf["sumPathTrain"], sess.graph)
-            for testName in self.conf["testDataName"]:
-                if not os.path.exists(self.conf["sumPathTest"] + testName + "/"):
-                    os.makedirs(self.conf["sumPathTest"] + testName + "/")
-                self.sum_writers_test[testName] = tf.summary.FileWriter(self.conf["sumPathTest"] + testName + "/", sess.graph)
+            # for testName in self.conf["testDataName"]:
+            #     if not os.path.exists(self.conf["sumPathTest"] + testName + "/"):
+            #         os.makedirs(self.conf["sumPathTest"] + testName + "/")
+            #     self.sum_writers_test[testName] = tf.summary.FileWriter(self.conf["sumPathTest"] + testName + "/", sess.graph)
             # load model data if pre-trained
             sess.run(tf.group(tf.global_variables_initializer(),
                               tf.local_variables_initializer()))
             if os.path.isfile(self.conf["modelPath"] + 'model.cptk.data-00000-of-00001'):
                 print "restoring saved model"
-                self.saver.restore(sess, self.conf["modelPath"] + 'model.cptk')
+                # self.saver.restore(sess, self.conf["modelPath"] + 'model.cptk')
+                self.saver.restore(sess, tf.train.latest_checkpoint(self.conf["modelPath"]))
             self.ori_lr = self.conf["learningRateOrigin"]
             self.power = self.conf["decayRate"]
             self.epoch_walked = self.conf["epochWalked"]
@@ -240,11 +271,12 @@ class GANTrainier(GAN):
             self.re_example_epoch = self.conf["updateEpoch"]
             self.MAX_EPOCH = self.conf["maxEpoch"]
             self.upper_threshold = self.conf["predictThreshold"]
+            self.additional_threshold = self.conf["additionalThreshold"]
             self.learning_rate_g = self.ori_lr * pow(self.power, (self.epoch_walked / self.decay_step))
             # start training loop
             self.global_step = self.conf["stepWalked"]
             for epoch in range(self.epoch_walked, self.MAX_EPOCH):
-                if epoch % self.conf["testEpoch"] == 0:
+                if epoch % self.conf["testEpoch"] == 0 and epoch > self.conf["discriminatorTrainEpoch"]:
                     for tData in self.test_datas:
                         self.full_testing(tData, sess, epoch)
                 if epoch < self.conf["discriminatorTrainEpoch"]:
@@ -269,18 +301,24 @@ class GANTrainier(GAN):
         self.calculateLoss()
         self.getTrainiers()
         # accuracy
-        self.block_acc = tf.placeholder(tf.float32)
-        blockTest_sum = tf.summary.scalar("train_block_accuracy", self.block_acc)
+        self.blockIOU = tf.placeholder(tf.float32)
+        self.blockSA = tf.placeholder(tf.float32)
+        self.blockOS = tf.placeholder(tf.float32)
+        self.blockUR = tf.placeholder(tf.float32)
+        blockIOU_sum = tf.summary.scalar("train_block_IOU", self.blockIOU)
+        blockSA_sum = tf.summary.scalar("train_block_Segment_Accuracy", self.blockSA)
+        blockOS_sum = tf.summary.scalar("train_block_Over_Segment", self.blockOS)
+        blockUR_sum = tf.summary.scalar("train_block_Under_Segment", self.blockUR)
 
         self.train_merge_op = tf.summary.merge([self.g_sum,self.d_sum,self.cross_entropy_sum])
-        self.blockTest_merge_op = tf.summary.merge([blockTest_sum])
+        self.blockTest_merge_op = tf.summary.merge([blockIOU_sum, blockSA_sum, blockOS_sum, blockUR_sum])
 
         self.saver = tf.train.Saver(max_to_keep=1)
         self.trainLoop()
 
     def full_testing(self, testData, sess, epoch):
         print '********************** FULL TESTING ********************************'
-        self.weight_for = 0.5 + (1 - 1.0 * epoch / self.MAX_EPOCH) * 0.35
+        self.weight_for = 0.5 + (1 - 1.0 * epoch / self.MAX_EPOCH) * 0.9
         time_begin = time.time()
         test_batch_size = self.conf["batchSize"]
         print "mask shape: ", np.shape(testData.mask_array)
@@ -303,7 +341,7 @@ class GANTrainier(GAN):
                     feed_dict={self.X: temp_input,
                                self.training: False,
                                self.w: self.weight_for,
-                               self.threshold: self.upper_threshold})
+                               self.threshold: self.upper_threshold + self.additional_threshold})
                 for j in range(test_batch_size):
                     testData.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
             else:
@@ -329,7 +367,7 @@ class GANTrainier(GAN):
                         feed_dict={X_temp: temp_input,
                                    self.training: False,
                                    self.w: self.weight_for,
-                                   self.threshold: self.upper_threshold})
+                                   self.threshold: self.upper_threshold + self.additional_threshold})
                     for j in range(temp_batch_size):
                         testData.upload_result(batch_numbers[j], Y_temp_modi[j, :, :, :])
 
@@ -337,17 +375,18 @@ class GANTrainier(GAN):
         print "result shape: ", np.shape(testData.test_result_array)
         testData.post_process(self.conf["clampThickness"])
 
-        if epoch % self.conf["outputEpoch"] == 0:
+        if epoch % self.conf["outputEpoch"] == 0 and epoch > self.conf["discriminatorTrainEpoch"]:
             testData.output_img(epoch = epoch, test_results_dir = self.conf["resultPath"])
         if epoch == self.conf["outputEpoch"]:
             mask_img = ST.GetImageFromArray(np.transpose(testData.mask_array, [2, 1, 0]))
             mask_img.SetSpacing(testData.space)
-            ST.WriteImage(mask_img, self.conf["resultPath"] + 'test_mask.vtk')
+            ST.WriteImage(mask_img, str(self.conf["resultPath"] + 'test_mask.vtk'))
 
         evaluateFeed = testData.get_evaluate(self.test_values[testData.Name]["placeHolders"])
         test_summary = sess.run(self.test_merges[testData.Name],
                                 feed_dict=evaluateFeed)
-        self.sum_writers_test[testData.Name].add_summary(test_summary, global_step=epoch)
+        # self.sum_writers_test[testData.Name].add_summary(test_summary, global_step=epoch)
+        self.sum_writers_test.add_summary(test_summary, global_step=epoch)
         time_end = time.time()
         print '******************** time of full testing: ' + str(time_end - time_begin) + 's ********************'
 

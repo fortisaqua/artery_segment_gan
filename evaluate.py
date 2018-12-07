@@ -40,6 +40,11 @@ class IOU(Indicator):
 
     def calculate(self, RS, TS):
         ans = 2 * np.sum(np.abs(RS * TS)) / np.sum(np.abs(RS) + np.abs(TS))
+        maxVal1 = np.max(RS)
+        minVal1 = np.min(TS)
+        maxVal2 = np.max(TS)
+        minVal2 = np.min(TS)
+        equalSum = np.sum(np.float32(RS == TS))
         return ans
 
 class Evaluator:
@@ -59,5 +64,5 @@ class Evaluator:
         '''
         results = {}
         for eName in keys:
-            results[eName] = self.evaluators[eName].calculate(RS, TS)
+            results[eName] = self.evaluators[eName].calculate(np.float32(RS > 0), np.float32(TS > 0))
         return results

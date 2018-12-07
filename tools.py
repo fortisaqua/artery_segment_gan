@@ -493,7 +493,7 @@ class Ops:
             w = tf.get_variable(name + '_w', [in_d, out_d], initializer=xavier_init)
             b = tf.get_variable(name + '_b', [out_d], initializer=zero_init)
             y = tf.nn.bias_add(tf.matmul(x, w), b)
-            Ops.variable_sum(w, name)
+            # Ops.variable_sum(w, name)
             return y
 
     @staticmethod
@@ -514,7 +514,21 @@ class Ops:
 
             stride = [1, str, str, str, 1]
             y = tf.nn.bias_add(tf.nn.conv3d(x, w, stride, pad), b)
-            Ops.variable_sum(w, name)
+            # Ops.variable_sum(w, name)
+            return y
+
+    @staticmethod
+    def conv2d(x, k, out_c, str, name, pad='SAME'):
+        with tf.variable_scope(name):
+            xavier_init = tf.contrib.layers.xavier_initializer()
+            zero_init = tf.zeros_initializer()
+            in_c = x.get_shape()[3]
+            w = tf.get_variable(name + '_w', [k, k, in_c, out_c], initializer=xavier_init)
+            b = tf.get_variable(name + '_b', [out_c], initializer=zero_init)
+
+            stride = [1, str, str, 1]
+            y = tf.nn.bias_add(tf.nn.conv2d(x, w, stride, pad), b)
+            # Ops.variable_sum(w, name)
             return y
 
     @staticmethod
@@ -529,7 +543,22 @@ class Ops:
             stride = [1, str, str, str, 1]
             y = tf.nn.conv3d_transpose(x, w, output_shape=out_shape, strides=stride, padding=pad)
             y = tf.nn.bias_add(y, b)
-            Ops.variable_sum(w, name)
+            # Ops.variable_sum(w, name)
+            return y
+
+    @staticmethod
+    def deconv2d(x, k, out_c, str, name,pad='VALID'):
+        with tf.variable_scope(name):
+            xavier_init = tf.contrib.layers.xavier_initializer()
+            zero_init = tf.zeros_initializer()
+            bat, in_d1, in_d2, in_c = [int(d) for d in x.get_shape()]
+            w = tf.get_variable(name + '_w', [k, k, out_c, in_c], initializer=xavier_init)
+            b = tf.get_variable(name + '_b', [out_c], initializer=zero_init)
+            out_shape = [bat, in_d1 * str, in_d2 * str, out_c]
+            stride = [1, str, str, 1]
+            y = tf.nn.conv2d_transpose(x, w, output_shape=out_shape, strides=stride, padding=pad)
+            y = tf.nn.bias_add(y, b)
+            # Ops.variable_sum(w, name)
             return y
 
     @staticmethod

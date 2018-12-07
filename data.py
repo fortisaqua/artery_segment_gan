@@ -28,8 +28,12 @@ class TestData:
         print "test data: ", testName
         self.Name = testName
         self.image_array = data["original"]
-        self.space = data["spacing"]
+        self.space = tuple(list(data["spacing"][0]))
         self.mask_array = data["mask"]
+
+        # specific for airway
+        # self.image_array = np.float32(self.image_array <= 0) * self.image_array
+
         self.image_shape = np.shape(self.image_array)
         self.blockShape=blockShape
         self.steps = list()
@@ -37,11 +41,13 @@ class TestData:
             self.steps.append(blockShape[i])
         # print self.steps
         # print self.block_shape
-        self.steps= sampleStep
+        self.steps = sampleStep
+        self.steps[0] = self.blockShape[0]
+        self.steps[1] = self.blockShape[1]
         self.judgeThreshold = 1.0
         for i in range(len(sampleStep)):
             self.judgeThreshold *= (self.blockShape[i] * 1.0) / (sampleStep[i] * 1.0)
-        self.judgeThreshold = self.judgeThreshold *3 /4
+        # self.judgeThreshold = self.judgeThreshold * 3 / 4
         self.blocks=dict()
         self.results=dict()
         print "\tsample step : ", self.steps
@@ -55,7 +61,7 @@ class TestData:
     def output_origin(self,output_dir):
         if not os.path.exists(output_dir):
             os.mkdir(output_dir)
-        ST.WriteImage(ST.GetImageFromArray(np.transpose(self.image_array,[2,1,0])),output_dir+"original.vtk")
+        ST.WriteImage(ST.GetImageFromArray(np.transpose(self.image_array,[2,1,0])),str(output_dir+"original.vtk"))
 
     # do the simple threshold function
     def threshold(self,low,high):
@@ -107,7 +113,7 @@ class TestData:
                 print np.shape(self.results[number].get_data()[:,:,:,0]),self.results[number].get_range()
         print "maximum value of predicted mask : ",np.max(ret)
         print "minimum value of predicted mask : ",np.min(ret)
-        self.test_result_array = np.float32(ret > self.judgeThreshold)
+        self.test_result_array = np.float32(ret >= self.judgeThreshold)
 
     def post_process(self, edge_thickness):
         r_s = np.shape(self.test_result_array)  # result shape
@@ -126,7 +132,7 @@ class TestData:
         if not os.path.exists(test_results_dir):
             os.makedirs(test_results_dir)
         print test_results_dir + "test_result_" + str(epoch) + '.vtk'
-        ST.WriteImage(final_img, test_results_dir + "test_result_" + str(epoch) + '.vtk')
+        ST.WriteImage(final_img, str(test_results_dir + "test_result_" + str(epoch) + ".vtk"))
 
     def get_evaluate(self, placeHolders):
         evaluateValues = self.evaluator.Evaluate(self.mask_array, self.test_result_array, placeHolders.keys())
@@ -165,15 +171,16 @@ class TrainData:
         self.meta_data = pickle.load(pickle_reader)
         # accept_zeros = rand.sample(meta_data.keys(),8)
         allKeys = self.meta_data.keys()
-        total_keys = []
-        for keyName in allKeys:
-            isTest = False
-            for testName in self.config["testDataName"]:
-                if testName in keyName:
-                    isTest = True
-                    break
-            if not isTest:
-                total_keys.append(keyName)
+        total_keys = allKeys
+        # total_keys = []
+        # for keyName in allKeys:
+        #     isTest = False
+        #     for testName in self.config["testDataName"]:
+        #         if testName in keyName:
+        #             isTest = True
+        #             break
+        #     if not isTest:
+        #         total_keys.append(keyName)
         begin = (epoch * (self.sample_amount / 2)) % len(total_keys)
         end = (epoch * (self.sample_amount / 2) + self.sample_amount) % len(total_keys)
         if begin < end:
@@ -289,7 +296,7 @@ class TrainData:
             X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] += X_data_voxels[i][:,:,:]
             Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] += Y_data_voxels[i][:,:,:]
 
-        return X_data,Y_data
+        return X_data,np.float32(Y_data > 0)
 
     def load_X_Y_voxel_test_next_batch(self,fix_sample=False):
         if fix_sample:
@@ -314,7 +321,7 @@ class TrainData:
             shape_Y = np.shape(temp_y)
             X_data[i,:shape_X[0],:shape_X[1],:shape_X[2]] = X_test_voxels_batch[i][:,:,:]
             Y_data[i,:shape_Y[0],:shape_Y[1],:shape_Y[2]] = Y_test_voxels_batch[i][:,:,:]
-        return X_data,Y_data
+        return X_data,np.float32(Y_data > 0)
 
     ###################  check datas
     def check_data(self):
@@ -342,9 +349,10 @@ class TrainData:
         if tag:
             print "checked!"
         else:
-            print "some are failed"
-            for item in fail_list:
-                print item
+            print "some are incomplete"
+            print "got ",len(fail_list), "incomplete blocks"
+            # for item in fail_list:
+            #     print item
 
     # method of getting many masks for multi-class classifying job on pixel level
     def get_multi_data(self, meta_path, single_size, epoch, train_amount, max_epoch, mask_names, full_zero_num):
